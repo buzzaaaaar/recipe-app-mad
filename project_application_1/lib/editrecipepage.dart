@@ -63,6 +63,7 @@ class RecipePageState extends State {
         children: [
           Container(
             height: 2,
+            // ignore: deprecated_member_use
             color: const Color.fromARGB(255, 234, 113, 15).withOpacity(0.2),
           ),
           Expanded(
@@ -178,6 +179,7 @@ class RecipePageState extends State {
                       const SizedBox(height: 8),
                       TextFormField(
                         initialValue: _recipeName,
+                        style: TextStyle(fontWeight: FontWeight.w600),
                         decoration: InputDecoration(
                           border: OutlineInputBorder(
                             borderRadius: BorderRadius.circular(8),
@@ -213,6 +215,7 @@ class RecipePageState extends State {
                       const SizedBox(height: 8),
                       TextFormField(
                         initialValue: _prepTime,
+                        style: TextStyle(fontWeight: FontWeight.w600),
                         decoration: InputDecoration(
                           border: OutlineInputBorder(
                             borderRadius: BorderRadius.circular(8),
@@ -248,6 +251,7 @@ class RecipePageState extends State {
                       const SizedBox(height: 8),
                       TextFormField(
                         initialValue: _cookTime,
+                        style: TextStyle(fontWeight: FontWeight.w600),
                         decoration: InputDecoration(
                           border: OutlineInputBorder(
                             borderRadius: BorderRadius.circular(8),
@@ -283,6 +287,7 @@ class RecipePageState extends State {
                       const SizedBox(height: 8),
                       TextFormField(
                         initialValue: _totalTime,
+                        style: TextStyle(fontWeight: FontWeight.w600),
                         decoration: InputDecoration(
                           border: OutlineInputBorder(
                             borderRadius: BorderRadius.circular(8),
@@ -318,6 +323,7 @@ class RecipePageState extends State {
                       const SizedBox(height: 8),
                       TextFormField(
                         initialValue: _servings,
+                        style: TextStyle(fontWeight: FontWeight.w600),
                         decoration: InputDecoration(
                           border: OutlineInputBorder(
                             borderRadius: BorderRadius.circular(8),
