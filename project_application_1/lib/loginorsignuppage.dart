@@ -16,8 +16,38 @@ class MyApp extends StatelessWidget {
   }
 }
 
-class LoadingScreen extends StatelessWidget {
+class LoadingScreen extends StatefulWidget {
   const LoadingScreen({super.key});
+
+  @override
+  LoadingScreenState createState() => LoadingScreenState();
+}
+
+class LoadingScreenState extends State<LoadingScreen> {
+  bool isLoginPressed = false;
+  bool isSignUpPressed = false;
+
+  void _setButtonState(bool isPressed, bool isLogin) {
+    setState(() {
+      if (isLogin) {
+        isLoginPressed = isPressed;
+      } else {
+        isSignUpPressed = isPressed;
+      }
+    });
+
+    if (isPressed) {
+      Future.delayed(const Duration(milliseconds: 200), () {
+        setState(() {
+          if (isLogin) {
+            isLoginPressed = false;
+          } else {
+            isSignUpPressed = false;
+          }
+        });
+      });
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -26,64 +56,25 @@ class LoadingScreen extends StatelessWidget {
       body: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          const SizedBox(height: 20), // Reduced space from top
+          const SizedBox(height: 20),
           Center(
-            child: Image.asset(
-              'assets/Logo.png', // Ensure this image exists in assets
-              width: 400,
-              height: 400,
-            ),
+            child: Image.asset('assets/Logo.png', width: 400, height: 400),
           ),
-          const SizedBox(height: 50), // Space between image and buttons
+          const SizedBox(height: 50),
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 50),
             child: Column(
               children: [
-                // Login Button
-                InkWell(
-                  onTap: () {
-                    // Handle Login button press
-                  },
-                  child: Container(
-                    decoration: BoxDecoration(
-                      color: const Color(0xFFFFDB4F), // Button color #ffdb4f
-                      borderRadius: BorderRadius.circular(30), // Rounded corners
-                    ),
-                    height: 60, // Height of the button
-                    width: double.infinity, // Full width
-                    alignment: Alignment.center, // Center the text
-                    child: const Text(
-                      'LOG IN',
-                      style: TextStyle(
-                        color: Colors.white, // Text color
-                        fontSize: 24, // Font size
-                      ),
-                    ),
-                  ),
+                CustomButton(
+                  text: 'LOG IN',
+                  isPressed: isLoginPressed,
+                  onPressState: (isPressed) => _setButtonState(isPressed, true),
                 ),
-                const SizedBox(height: 30), // Space between buttons
-
-                // Sign Up Button
-                InkWell(
-                  onTap: () {
-                    // Handle Signup button press
-                  },
-                  child: Container(
-                    decoration: BoxDecoration(
-                      color: const Color(0xFFFFDB4F), // Button color #ffdb4f
-                      borderRadius: BorderRadius.circular(30), // Rounded corners
-                    ),
-                    height: 60, // Height of the button
-                    width: double.infinity, // Full width
-                    alignment: Alignment.center, // Center the text
-                    child: const Text(
-                      'SIGN UP',
-                      style: TextStyle(
-                        color: Colors.white, // Text color
-                        fontSize: 24, // Font size
-                      ),
-                    ),
-                  ),
+                const SizedBox(height: 30),
+                CustomButton(
+                  text: 'SIGN UP',
+                  isPressed: isSignUpPressed,
+                  onPressState: (isPressed) => _setButtonState(isPressed, false),
                 ),
               ],
             ),
@@ -92,4 +83,44 @@ class LoadingScreen extends StatelessWidget {
       ),
     );
   }
-} 
+}
+
+class CustomButton extends StatelessWidget {
+  final String text;
+  final bool isPressed;
+  final Function(bool) onPressState;
+
+  const CustomButton({
+    super.key,
+    required this.text,
+    required this.isPressed,
+    required this.onPressState,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTapDown: (_) => onPressState(true),
+      onTapUp: (_) => onPressState(false),
+      onTapCancel: () => onPressState(false),
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 200),
+        height: 60,
+        width: double.infinity,
+        alignment: Alignment.center,
+        decoration: BoxDecoration(
+          color: isPressed ? const Color(0xFFFF8210) : const Color(0xFFFFDB4F),
+          borderRadius: BorderRadius.circular(30),
+          border: Border.all(
+            color: isPressed ? Colors.white : Colors.transparent,
+            width: 2,
+          ),
+        ),
+        child: Text(
+          text,
+          style: const TextStyle(color: Colors.white, fontSize: 24),
+        ),
+      ),
+    );
+  }
+}
