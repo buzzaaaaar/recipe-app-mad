@@ -58,6 +58,7 @@ class LoginPageState extends State<LoginPage> {
                 borderRadius: BorderRadius.circular(20),
                 boxShadow: [
                   BoxShadow(
+                    // ignore: deprecated_member_use
                     color: Colors.black.withOpacity(0.1),
                     blurRadius: 10,
                     spreadRadius: 2,

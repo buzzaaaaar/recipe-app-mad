@@ -55,6 +55,13 @@ flutter:
     - assets/Logo.png
     - assets/topshape.png
     - assets/bottomshape.png
+    - assets/home.png
+    - assets/search.png
+    - assets/profile.png
+    - assets/cookies.png
+    - assets/ExploreIconOnClick.png
+    - assets/HomeIconOnClick.png
+    - assets/MyProfileIconOnClick.png
   # The following line ensures that the Material Icons font is
   # included with your application, so that you can use the icons in
   # the material Icons class.
