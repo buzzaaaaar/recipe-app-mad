@@ -52,7 +52,7 @@ dev_dependencies:
 # The following section is specific to Flutter packages.
 flutter:
 uses-material-design: true
-  assets
+assets:
     - assets/icons/HomeIcon.png
     - assets/icons/HomeIconOnClick.png
     - assets/icons/MyProfileIcon.png
@@ -60,6 +60,8 @@ uses-material-design: true
     - assets/icons/ExploreIcon.png
     - assets/icons/ExploreIconOnClick.png
     - assets/FluffyPancakes.png
+    - assets/Idiyappam.jpg
+    - assets/Bruschetta.jpg
 
   # The following line ensures that the Material Icons font is
   # included with your application, so that you can use the icons in

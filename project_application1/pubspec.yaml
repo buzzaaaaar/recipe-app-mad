@@ -53,10 +53,7 @@ dev_dependencies:
 flutter:
   uses-material-design: true
   assets:
-    - assets/icons/VegetablesIcon.png
-    - assets/icons/FruitsIcon.png
-    - assets/icons/ProteinsIcon.png
-    - assets/icons/GrainsAndStarchesIcon.png
+    
     - assets/icons/HomeIcon.png
     - assets/icons/HomeIconOnClick.png
     - assets/icons/MyProfileIcon.png

@@ -5,6 +5,8 @@ void main() {
 }
 
 class MyApp extends StatelessWidget {
+  const MyApp({super.key});
+
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
@@ -19,15 +21,63 @@ class MyApp extends StatelessWidget {
 }
 
 class HomePage extends StatefulWidget {
+  const HomePage({super.key});
+
   @override
-  _HomePageState createState() => _HomePageState();
+  HomePageState createState() => HomePageState();
 }
 
-class _HomePageState extends State<HomePage> {
-  int selectedBottomIndex = 1; // Set to 1 to highlight Explore on launch
+class HomePageState extends State<HomePage> {
+  int selectedBottomIndex = 1;
+  String searchQuery = '';
+  bool showNoResults = false;
+  Set<String> selectedCategories = {};
+
+  final List<Map<String, dynamic>> recipes = [
+    {
+      'imageUrl': "assets/Idiyappam.jpg",
+      'title': "Idiyappam",
+      'author': "Priyanthika Malkanthi",
+      'rating': 4.7,
+      'reviews': 7,
+      'canMake': true,
+      'category': 'Breakfast',
+    },
+    {
+      'imageUrl': "assets/Bruschetta.jpg",
+      'title': "Bruschetta",
+      'author': "Kamala Gunasekara",
+      'rating': 4.3,
+      'reviews': 10,
+      'canMake': false,
+      'category': 'Snack',
+    },
+    {
+      'imageUrl': "assets/FluffyPancakes.jpg",
+      'title': "Fluffy Pancakes",
+      'author': "Natasha Wijesekara",
+      'rating': 4.0,
+      'reviews': 12,
+      'canMake': true,
+      'category': 'Dessert',
+    },
+  ];
 
   @override
   Widget build(BuildContext context) {
+    List<Map<String, dynamic>> filteredRecipes = recipes
+        .where((recipe) =>
+            recipe['title'].toLowerCase().contains(searchQuery.toLowerCase()))
+        .toList();
+
+    if (selectedCategories.isNotEmpty) {
+      filteredRecipes = filteredRecipes
+          .where((recipe) => selectedCategories.contains(recipe['category']))
+          .toList();
+    }
+
+    showNoResults = searchQuery.isNotEmpty && filteredRecipes.isEmpty;
+
     return Scaffold(
       appBar: AppBar(
         backgroundColor: Colors.white,
@@ -59,6 +109,11 @@ class _HomePageState extends State<HomePage> {
             Padding(
               padding: const EdgeInsets.all(16.0),
               child: TextField(
+                onChanged: (value) {
+                  setState(() {
+                    searchQuery = value;
+                  });
+                },
                 decoration: InputDecoration(
                   hintText: "Search for a recipe...",
                   hintStyle: TextStyle(
@@ -77,44 +132,42 @@ class _HomePageState extends State<HomePage> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  DiscoverPageCategorySection(), // Added Category Section here
+                  DiscoverPageCategorySection(
+                    onCategorySelected: (category) {
+                      setState(() {
+                        if (selectedCategories.contains(category)) {
+                          selectedCategories.remove(category);
+                        } else {
+                          selectedCategories.add(category);
+                        }
+                      });
+                    },
+                    selectedCategories: selectedCategories,
+                  ),
                   SizedBox(height: 16),
-                  Text(
-                    "🔥 Trending Recipes",
-                    style: TextStyle(
-                      fontFamily: 'AlbertSans',
-                      fontWeight: FontWeight.bold,
-                      fontSize: 20,
+                  if (showNoResults)
+                    Text(
+                      "No results found.",
+                      style: TextStyle(color: Colors.grey),
+                    )
+                  else
+                    Column(
+                      children: filteredRecipes.map((recipe) {
+                        return Column(
+                          children: [
+                            RecipeCard(
+                              imageUrl: recipe['imageUrl'],
+                              title: recipe['title'],
+                              author: recipe['author'],
+                              rating: recipe['rating'],
+                              reviews: recipe['reviews'],
+                              canMake: recipe['canMake'],
+                            ),
+                            SizedBox(height: 16),
+                          ],
+                        );
+                      }).toList(),
                     ),
-                  ),
-                  SizedBox(height: 16),
-                  RecipeCard(
-                    imageUrl:
-                        "assets/Idiyappam.png", // Replace with your image path
-                    title: "Idiyappam",
-                    author: "Priyanthika Malkanthi",
-                    rating: 4.7,
-                    reviews: 7,
-                    canMake: true,
-                  ),
-                  SizedBox(height: 16),
-                  RecipeCard(
-                    imageUrl: "assets/bruschetta.png",
-                    title: "Bruschetta",
-                    author: "Kamala Gunasekara",
-                    rating: 4.3,
-                    reviews: 10,
-                    canMake: false,
-                  ),
-                  SizedBox(height: 16),
-                  RecipeCard(
-                    imageUrl: "assets/FluffyPancakes.png",
-                    title: "Fluffy Pancakes",
-                    author: "Natasha Wijesekara",
-                    rating: 4.0,
-                    reviews: 12,
-                    canMake: true,
-                  ),
                 ],
               ),
             ),
@@ -143,8 +196,8 @@ class _HomePageState extends State<HomePage> {
                   children: [
                     Image.asset(
                       selectedBottomIndex == 0
-                          ? 'assets/icons/HomeIconOnClick.png'
-                          : 'assets/icons/HomeIcon.png',
+                          ? 'assets/HomeIconOnClick.png'
+                          : 'assets/home.png',
                       width: 24,
                       height: 24,
                     ),
@@ -165,8 +218,8 @@ class _HomePageState extends State<HomePage> {
                   children: [
                     Image.asset(
                       selectedBottomIndex == 1
-                          ? 'assets/icons/ExploreIconOnClick.png'
-                          : 'assets/icons/ExploreIcon.png',
+                          ? 'assets/ExploreIconOnClick.png'
+                          : 'assets/search.png',
                       width: 24,
                       height: 24,
                     ),
@@ -187,8 +240,8 @@ class _HomePageState extends State<HomePage> {
                   children: [
                     Image.asset(
                       selectedBottomIndex == 2
-                          ? 'assets/icons/MyProfileIconOnClick.png'
-                          : 'assets/icons/MyProfileIcon.png',
+                          ? 'assets/MyProfileIconOnClick.png'
+                          : 'assets/profile.png',
                       width: 24,
                       height: 24,
                     ),
@@ -226,7 +279,8 @@ class RecipeCard extends StatelessWidget {
   final int reviews;
   final bool canMake;
 
-  RecipeCard({
+  const RecipeCard({
+    super.key,
     required this.imageUrl,
     required this.title,
     required this.author,
@@ -248,7 +302,7 @@ class RecipeCard extends StatelessWidget {
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Container(
+          SizedBox(
             width: 120,
             child: ClipRRect(
               borderRadius: BorderRadius.circular(12),
@@ -346,15 +400,22 @@ class RecipeCard extends StatelessWidget {
 }
 
 class DiscoverPageCategorySection extends StatefulWidget {
+  final Function(String) onCategorySelected;
+  final Set<String> selectedCategories;
+
+  const DiscoverPageCategorySection({
+    super.key,
+    required this.onCategorySelected,
+    required this.selectedCategories,
+  });
+
   @override
-  _DiscoverPageCategorySectionState createState() =>
-      _DiscoverPageCategorySectionState();
+  DiscoverPageCategorySectionState createState() =>
+      DiscoverPageCategorySectionState();
 }
 
-class _DiscoverPageCategorySectionState
+class DiscoverPageCategorySectionState
     extends State<DiscoverPageCategorySection> {
-  Set<String> selectedCategories = Set();
-
   @override
   Widget build(BuildContext context) {
     return Column(
@@ -373,108 +434,78 @@ class _DiscoverPageCategorySectionState
           children: [
             ElevatedButton(
               onPressed: () {
-                setState(() {
-                  if (selectedCategories.contains("Dessert")) {
-                    selectedCategories.remove("Dessert");
-                  } else {
-                    selectedCategories.add("Dessert");
-                  }
-                });
+                widget.onCategorySelected("Dessert");
               },
+              style: ElevatedButton.styleFrom(
+                backgroundColor: widget.selectedCategories.contains("Dessert")
+                    ? Color(0xFFFF8210)
+                    : Colors.white,
+                foregroundColor: widget.selectedCategories.contains("Dessert")
+                    ? Colors.white
+                    : Color(0xFFFF8210),
+                side: BorderSide(color: Color(0xFFFF8210)),
+              ),
               child: Text("Dessert"),
+            ),
+            ElevatedButton(
+              onPressed: () {
+                widget.onCategorySelected("Breakfast");
+              },
               style: ElevatedButton.styleFrom(
-                backgroundColor: selectedCategories.contains("Dessert")
+                backgroundColor: widget.selectedCategories.contains("Breakfast")
                     ? Color(0xFFFF8210)
                     : Colors.white,
-                foregroundColor: selectedCategories.contains("Dessert")
+                foregroundColor: widget.selectedCategories.contains("Breakfast")
                     ? Colors.white
                     : Color(0xFFFF8210),
                 side: BorderSide(color: Color(0xFFFF8210)),
               ),
-            ),
-            ElevatedButton(
-              onPressed: () {
-                setState(() {
-                  if (selectedCategories.contains("Breakfast")) {
-                    selectedCategories.remove("Breakfast");
-                  } else {
-                    selectedCategories.add("Breakfast");
-                  }
-                });
-              },
               child: Text("Breakfast"),
+            ),
+            ElevatedButton(
+              onPressed: () {
+                widget.onCategorySelected("Lunch");
+              },
               style: ElevatedButton.styleFrom(
-                backgroundColor: selectedCategories.contains("Breakfast")
+                backgroundColor: widget.selectedCategories.contains("Lunch")
                     ? Color(0xFFFF8210)
                     : Colors.white,
-                foregroundColor: selectedCategories.contains("Breakfast")
+                foregroundColor: widget.selectedCategories.contains("Lunch")
                     ? Colors.white
                     : Color(0xFFFF8210),
                 side: BorderSide(color: Color(0xFFFF8210)),
               ),
-            ),
-            ElevatedButton(
-              onPressed: () {
-                setState(() {
-                  if (selectedCategories.contains("Lunch")) {
-                    selectedCategories.remove("Lunch");
-                  } else {
-                    selectedCategories.add("Lunch");
-                  }
-                });
-              },
               child: Text("Lunch"),
+            ),
+            ElevatedButton(
+              onPressed: () {
+                widget.onCategorySelected("Dinner");
+              },
               style: ElevatedButton.styleFrom(
-                backgroundColor: selectedCategories.contains("Lunch")
+                backgroundColor: widget.selectedCategories.contains("Dinner")
                     ? Color(0xFFFF8210)
                     : Colors.white,
-                foregroundColor: selectedCategories.contains("Lunch")
+                foregroundColor: widget.selectedCategories.contains("Dinner")
                     ? Colors.white
                     : Color(0xFFFF8210),
                 side: BorderSide(color: Color(0xFFFF8210)),
               ),
-            ),
-            ElevatedButton(
-              onPressed: () {
-                setState(() {
-                  if (selectedCategories.contains("Dinner")) {
-                    selectedCategories.remove("Dinner");
-                  } else {
-                    selectedCategories.add("Dinner");
-                  }
-                });
-              },
               child: Text("Dinner"),
-              style: ElevatedButton.styleFrom(
-                backgroundColor: selectedCategories.contains("Dinner")
-                    ? Color(0xFFFF8210)
-                    : Colors.white,
-                foregroundColor: selectedCategories.contains("Dinner")
-                    ? Colors.white
-                    : Color(0xFFFF8210),
-                side: BorderSide(color: Color(0xFFFF8210)),
-              ),
             ),
             ElevatedButton(
               onPressed: () {
-                setState(() {
-                  if (selectedCategories.contains("Snack")) {
-                    selectedCategories.remove("Snack");
-                  } else {
-                    selectedCategories.add("Snack");
-                  }
-                });
+                widget.onCategorySelected("Snack");
               },
-              child: Text("Snack"),
               style: ElevatedButton.styleFrom(
-                backgroundColor: selectedCategories.contains("Snack")
+                backgroundColor: widget.selectedCategories.contains("Snack")
                     ? Color(0xFFFF8210)
                     : Colors.white,
-                foregroundColor: selectedCategories.contains("Snack")
+                foregroundColor: widget.selectedCategories.contains("Snack")
                     ? Colors.white
                     : Color(0xFFFF8210),
                 side: BorderSide(color: Color(0xFFFF8210)),
               ),
+              child: Text("Snack"),
             ),
           ],
         ),
