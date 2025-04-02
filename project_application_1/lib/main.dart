@@ -1,7 +1,22 @@
+import 'package:firebase_auth/firebase_auth.dart';
+import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/material.dart';
+import 'firebase_options.dart';
 import 'loginorsignuppage.dart';
 
-void main() {
+void main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+
+  await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
+
+  // Debug: Verify Firebase Auth is working
+  try {
+    final auth = FirebaseAuth.instance;
+    print("Firebase Auth instance: $auth");
+  } catch (e) {
+    print("Firebase Auth error: $e");
+  }
+
   runApp(const MyApp());
 }
 
