@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import 'loginpage.dart';  
+import 'signuppage.dart';  
 
 void main() {
   runApp(const MyApp());
@@ -11,19 +13,19 @@ class MyApp extends StatelessWidget {
   Widget build(BuildContext context) {
     return MaterialApp(
       debugShowCheckedModeBanner: false,
-      home: const LoadingScreen(),
+      home: const LoginOrSignupPage(),
     );
   }
 }
 
-class LoadingScreen extends StatefulWidget {
-  const LoadingScreen({super.key});
+class LoginOrSignupPage extends StatefulWidget {
+  const LoginOrSignupPage({super.key});
 
   @override
-  LoadingScreenState createState() => LoadingScreenState();
+  LoginOrSignupPageState createState() => LoginOrSignupPageState();
 }
 
-class LoadingScreenState extends State<LoadingScreen> {
+class LoginOrSignupPageState extends State<LoginOrSignupPage> {
   bool isLoginPressed = false;
   bool isSignUpPressed = false;
 
@@ -46,6 +48,17 @@ class LoadingScreenState extends State<LoadingScreen> {
           }
         });
       });
+      if (isLogin) {
+        Navigator.push(
+          context,
+          MaterialPageRoute(builder: (context) => const LoginPage()),
+        );
+      } else {
+        Navigator.push(
+          context,
+          MaterialPageRoute(builder: (context) => const SignUpPage()),
+        );
+      }
     }
   }
 

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'loginpage.dart';  
 
 void main() {
   runApp(const MyApp());
@@ -203,9 +204,13 @@ class SignUpPageState extends State<SignUpPage> {
                             setState(() {
                               _isSignUpLinkPressed = true;
                             });
-                            // Simulate navigation to sign-up page
-                            Future.delayed(const Duration(seconds: 1), () {
-                              // Add navigation code here (e.g., Navigator.push)
+                            Future.delayed(const Duration(milliseconds: 200), () {
+                              Navigator.push(
+                                context,
+                                MaterialPageRoute(
+                                  builder: (context) => const LoginPage(),
+                                ),
+                              );
                               setState(() {
                                 _isSignUpLinkPressed = false; // Reset link state after action
                               });

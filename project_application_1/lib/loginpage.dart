@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'signuppage.dart';
 
 void main() {
   runApp(const MyApp());
@@ -72,7 +73,10 @@ class LoginPageState extends State<LoginPage> {
                   children: [
                     const Text(
                       "Welcome back!",
-                      style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
+                      style: TextStyle(
+                        fontSize: 24,
+                        fontWeight: FontWeight.bold,
+                      ),
                     ),
                     const SizedBox(height: 5),
                     const Text(
@@ -123,14 +127,21 @@ class LoginPageState extends State<LoginPage> {
                           Future.delayed(const Duration(seconds: 1), () {
                             // Add navigation code here (e.g., Navigator.push)
                             setState(() {
-                              _isButtonPressed = false; // Reset button state after action
+                              _isButtonPressed =
+                                  false; // Reset button state after action
                             });
                           });
                         }
                       },
                       style: ElevatedButton.styleFrom(
-                        backgroundColor: _isButtonPressed ? Colors.white : const Color(0xFFFFDB4F),
-                        side: BorderSide(color: const Color(0xFFFFDB4F), width: 2),
+                        backgroundColor:
+                            _isButtonPressed
+                                ? Colors.white
+                                : const Color(0xFFFFDB4F),
+                        side: BorderSide(
+                          color: const Color(0xFFFFDB4F),
+                          width: 2,
+                        ),
                         minimumSize: const Size(double.infinity, 50),
                         shape: RoundedRectangleBorder(
                           borderRadius: BorderRadius.circular(30),
@@ -139,7 +150,10 @@ class LoginPageState extends State<LoginPage> {
                       child: Text(
                         _isButtonPressed ? "Logging In..." : "LOG IN",
                         style: TextStyle(
-                          color: _isButtonPressed ? const Color(0xFFFFDB4F) : Colors.white,
+                          color:
+                              _isButtonPressed
+                                  ? const Color(0xFFFFDB4F)
+                                  : Colors.white,
                           fontSize: 18,
                         ),
                       ),
@@ -158,19 +172,31 @@ class LoginPageState extends State<LoginPage> {
                               _isSignUpLinkPressed = true;
                             });
                             // Simulate navigation to sign-up page
-                            Future.delayed(const Duration(seconds: 1), () {
-                              // Add navigation code here (e.g., Navigator.push)
+                            Future.delayed(const Duration(milliseconds: 200), () {
+                              Navigator.push(
+                                context,
+                                MaterialPageRoute(
+                                  builder: (context) => const SignUpPage(),
+                                ),
+                              );
                               setState(() {
-                                _isSignUpLinkPressed = false; // Reset link state after action
+                                _isSignUpLinkPressed =
+                                    false; // Reset link state after action
                               });
                             });
                           },
                           child: Text(
                             "Sign up",
                             style: TextStyle(
-                              color: _isSignUpLinkPressed ? Colors.blue : Colors.blueAccent,
+                              color:
+                                  _isSignUpLinkPressed
+                                      ? Colors.blue
+                                      : Colors.blueAccent,
                               fontWeight: FontWeight.bold,
-                              decoration: _isSignUpLinkPressed ? TextDecoration.underline : TextDecoration.none,
+                              decoration:
+                                  _isSignUpLinkPressed
+                                      ? TextDecoration.underline
+                                      : TextDecoration.none,
                             ),
                           ),
                         ),

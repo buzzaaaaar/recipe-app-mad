@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'loginorsignuppage.dart';
 
 void main() {
   runApp(const MyApp());
@@ -21,6 +22,13 @@ class LoadingScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // Add the navigation after 5 seconds
+    Future.delayed(const Duration(seconds: 3), () {
+      Navigator.of(context).pushReplacement(
+        MaterialPageRoute(builder: (context) => const LoginOrSignupPage()),
+      );
+    });
+
     return Scaffold(
       backgroundColor: const Color(0xFFFF8210), // Background color #ff8210
       body: Column(
@@ -38,8 +46,11 @@ class LoadingScreen extends StatelessWidget {
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 50),
             child: LinearProgressIndicator(
-              backgroundColor: Colors.transparent, // Set the background color to transparent
-              valueColor: AlwaysStoppedAnimation<Color>(const Color(0xFFFFDB4F)), // Progress bar color
+              backgroundColor:
+                  Colors.transparent, // Set the background color to transparent
+              valueColor: AlwaysStoppedAnimation<Color>(
+                const Color(0xFFFFDB4F),
+              ), // Progress bar color
               minHeight: 10, // Height of the progress bar
             ),
           ),
