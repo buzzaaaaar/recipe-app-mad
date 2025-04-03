@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:project_application_1/pages/ProfilePage.dart';
+import 'package:project_application_1/pages/profilePage.dart';
 import '../models/category.dart';
 import '../widgets/category_card.dart';
 import 'discover_page.dart';
@@ -134,9 +134,7 @@ class _HomePageState extends State<HomePage> {
     } else if (index == 1) {
       Navigator.pushReplacement(
         context,
-        MaterialPageRoute(
-          builder: (context) => ExplorePage(),
-        ),
+        MaterialPageRoute(builder: (context) => ExplorePage()),
       );
     } else {
       setState(() {

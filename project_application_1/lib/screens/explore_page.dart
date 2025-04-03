@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import '../screens/home_page.dart';
-import '../pages/ProfilePage.dart';
+import '../pages/profilePage.dart';
 import '../models/recipe_model.dart';
 import '../recipepage.dart';
 
