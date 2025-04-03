@@ -8,11 +8,10 @@ plugins {
 android {
     namespace = "com.example.project_application_1"
     compileSdk = flutter.compileSdkVersion
-    ndkVersion = "27.0.12077973" // 🔥 Updated to match Firebase plugin requirements
-
+    ndkVersion = "27.0.12077973" 
     defaultConfig {
         applicationId = "com.example.project_application_1"
-        minSdk = 23 // ✅ Needed for Firebase Auth and modern APIs
+        minSdk = 23 
         targetSdk = 33
         versionCode = 1
         versionName = "1.0"
