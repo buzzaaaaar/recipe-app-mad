@@ -1,4 +1,9 @@
 import 'package:flutter/material.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_storage/firebase_storage.dart';
+import 'package:image_picker/image_picker.dart';
+import 'dart:io';
 
 void main() {
   runApp(const MyApp());
@@ -25,27 +30,364 @@ class CreateRecipePage extends StatefulWidget {
 
 class CreateRecipePageState extends State<CreateRecipePage> {
   int selectedBottomIndex = 0;
-  // ignore: prefer_final_fields
-  bool _hasVideo = false;
-  String? _imagePath;
+  // Removing the unused _hasVideo field or utilizing it
+  File? _imageFile;
+  File? _videoFile;
   String? _selectedCategory;
-  // ignore: unused_field
   String _recipeName = '';
-  // ignore: unused_field
   String _prepTime = '';
-  // ignore: unused_field
   String _cookTime = '';
-  // ignore: unused_field
   String _totalTime = '';
-  // ignore: unused_field
   String _servings = '';
   String _errorMessage = '';
+  bool _isLoading = false;
 
-  final TextEditingController ingredientsController = TextEditingController();
+  // Ingredients management
+  final List<Map<String, dynamic>> _allIngredients = [];
+  final List<Map<String, dynamic>> _ingredientCategories = [];
+  final List<Map<String, dynamic>> _selectedIngredients = [];
+  Map<String, dynamic>? _currentIngredient;
+  double _currentAmount = 0;
+  String? _currentUnit;
+
   final TextEditingController directionsController = TextEditingController();
   final TextEditingController nutritionalController = TextEditingController();
-
   final _formKey = GlobalKey<FormState>();
+
+  @override
+  void initState() {
+    super.initState();
+    print('Loading ingredients from Firebase...');
+    _loadIngredients();
+  }
+
+  Future<void> _loadIngredients() async {
+    try {
+      final categoriesSnapshot =
+          await FirebaseFirestore.instance
+              .collection('ingredient_categories')
+              .get();
+
+      final categories =
+          categoriesSnapshot.docs.map((doc) {
+            return {'id': doc.id, ...doc.data()};
+          }).toList();
+
+      setState(() {
+        _ingredientCategories.clear();
+        _ingredientCategories.addAll(categories);
+
+        // Extract all ingredients from categories to populate _allIngredients
+        _allIngredients.clear();
+        for (var category in _ingredientCategories) {
+          final categoryIngredients = category['ingredients'] as List<dynamic>;
+          for (var ingredient in categoryIngredients) {
+            _allIngredients.add({
+              'id':
+                  '${category['id']}_${ingredient['name']}', // Create a unique ID
+              'name': ingredient['name'],
+              'unitTypes': ingredient['unitTypes'],
+              'category': category['name'],
+            });
+          }
+        }
+      });
+    } catch (e) {
+      setState(() {
+        _errorMessage = 'Failed to load ingredients: $e';
+      });
+      print('Error loading ingredients: $e');
+    }
+  }
+
+  Future<void> _pickImage() async {
+    final pickedFile = await ImagePicker().pickImage(
+      source: ImageSource.gallery,
+    );
+    if (pickedFile != null) {
+      setState(() {
+        _imageFile = File(pickedFile.path);
+      });
+    }
+  }
+
+  Future<void> _pickVideo() async {
+    final pickedFile = await ImagePicker().pickVideo(
+      source: ImageSource.gallery,
+    );
+    if (pickedFile != null) {
+      setState(() {
+        _videoFile = File(pickedFile.path);
+      });
+    }
+  }
+
+  Future<String?> _uploadFile(File file, String path) async {
+    try {
+      final ref = FirebaseStorage.instance.ref().child(path);
+      await ref.putFile(file);
+      return await ref.getDownloadURL();
+    } catch (e) {
+      setState(() {
+        _errorMessage = 'Failed to upload file: $e';
+      });
+      return null;
+    }
+  }
+
+  Future<void> _postRecipe() async {
+    if (!_formKey.currentState!.validate() || _selectedIngredients.isEmpty) {
+      setState(() {
+        _errorMessage =
+            _selectedIngredients.isEmpty
+                ? 'Please add at least one ingredient'
+                : 'Please fill in all required fields';
+      });
+      return;
+    }
+
+    setState(() {
+      _isLoading = true;
+    });
+
+    try {
+      // Upload image and video if they exist
+      String? imageUrl;
+      String? videoUrl;
+
+      if (_imageFile != null) {
+        imageUrl = await _uploadFile(
+          _imageFile!,
+          'recipes/images/${DateTime.now().millisecondsSinceEpoch}',
+        );
+      }
+
+      if (_videoFile != null) {
+        videoUrl = await _uploadFile(
+          _videoFile!,
+          'recipes/videos/${DateTime.now().millisecondsSinceEpoch}',
+        );
+      }
+
+      // Create recipe data
+      final recipeData = {
+        'name': _recipeName,
+        'category': _selectedCategory,
+        'prepTime': _prepTime,
+        'cookTime': _cookTime,
+        'totalTime': _totalTime,
+        'servings': int.tryParse(_servings) ?? 0,
+        'ingredients':
+            _selectedIngredients.map((ingredient) {
+              return {
+                'ingredientId': ingredient['id'],
+                'amount': ingredient['amount'],
+                'unit': ingredient['unit'],
+              };
+            }).toList(),
+        'directions': directionsController.text.split('\n'),
+        'nutritionalInfo': _parseNutritionalInfo(nutritionalController.text),
+        'imageUrl': imageUrl,
+        'videoUrl': videoUrl,
+        'userId': FirebaseAuth.instance.currentUser?.uid ?? '',
+        'createdAt': Timestamp.now(),
+      };
+
+      // Save to Firestore
+      await FirebaseFirestore.instance.collection('recipes').add(recipeData);
+
+      // Navigate away or show success message
+      if (mounted) {
+        Navigator.pop(context);
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Recipe posted successfully!')),
+        );
+      }
+    } catch (e) {
+      setState(() {
+        _errorMessage = 'Failed to post recipe: $e';
+      });
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+        });
+      }
+    }
+  }
+
+  Map<String, dynamic> _parseNutritionalInfo(String text) {
+    final lines = text.split('\n');
+    final result = <String, dynamic>{};
+    for (var line in lines) {
+      final parts = line.split(':');
+      if (parts.length == 2) {
+        result[parts[0].trim()] = parts[1].trim();
+      }
+    }
+    return result;
+  }
+
+  Widget _buildIngredientsSection() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          "INGREDIENTS",
+          style: TextStyle(
+            fontSize: 18,
+            fontWeight: FontWeight.bold,
+            color: const Color(0xFFFFDB4F),
+          ),
+        ),
+        const SizedBox(height: 8),
+
+        // Selected ingredients list
+        if (_selectedIngredients.isNotEmpty)
+          Column(
+            children:
+                _selectedIngredients.map((ingredient) {
+                  return ListTile(
+                    title: Text(ingredient['name']),
+                    subtitle: Text(
+                      '${ingredient['amount']} ${ingredient['unit']}',
+                    ),
+                    trailing: IconButton(
+                      icon: const Icon(Icons.delete, color: Colors.red),
+                      onPressed: () {
+                        setState(() {
+                          _selectedIngredients.remove(ingredient);
+                        });
+                      },
+                    ),
+                  );
+                }).toList(),
+          ),
+
+        // Add ingredient controls
+        Row(
+          children: [
+            Expanded(
+              flex: 3,
+              child: DropdownButtonFormField<Map<String, dynamic>>(
+                value: _currentIngredient,
+                items:
+                    _allIngredients.map<DropdownMenuItem<Map<String, dynamic>>>(
+                      (ingredient) {
+                        return DropdownMenuItem<Map<String, dynamic>>(
+                          value: ingredient,
+                          child: Text(
+                            '${ingredient['name']} (${ingredient['category']})',
+                          ),
+                        );
+                      },
+                    ).toList(),
+                onChanged: (Map<String, dynamic>? value) {
+                  setState(() {
+                    _currentIngredient = value;
+                    if (value != null &&
+                        value['unitTypes'] is List &&
+                        (value['unitTypes'] as List).isNotEmpty) {
+                      _currentUnit =
+                          (value['unitTypes'] as List<dynamic>).first
+                              .toString();
+                    } else {
+                      _currentUnit = null;
+                    }
+                  });
+                },
+                decoration: InputDecoration(
+                  labelText: 'Ingredient',
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(8),
+                    borderSide: BorderSide(color: const Color(0xFFFFDB4F)),
+                  ),
+                ),
+              ),
+            ),
+
+            const SizedBox(width: 8),
+            // Amount field (previously incorrectly a Unit dropdown)
+            Expanded(
+              flex: 2,
+              child: TextFormField(
+                keyboardType: TextInputType.number,
+                decoration: InputDecoration(
+                  labelText: 'Amount',
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(8),
+                    borderSide: BorderSide(color: const Color(0xFFFFDB4F)),
+                  ),
+                ),
+                onChanged: (value) {
+                  setState(() {
+                    _currentAmount = double.tryParse(value) ?? 0;
+                  });
+                },
+              ),
+            ),
+            const SizedBox(width: 8),
+            // Unit dropdown (correct)
+            Expanded(
+              flex: 2,
+              child: DropdownButtonFormField<String>(
+                value: _currentUnit,
+                items:
+                    (_currentIngredient?['unitTypes'] as List<dynamic>? ?? [])
+                        .map<DropdownMenuItem<String>>((unit) {
+                          return DropdownMenuItem<String>(
+                            value: unit as String,
+                            child: Text(unit),
+                          );
+                        })
+                        .toList(),
+                onChanged: (String? value) {
+                  setState(() {
+                    _currentUnit = value;
+                  });
+                },
+                decoration: InputDecoration(
+                  labelText: 'Unit',
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(8),
+                    borderSide: BorderSide(color: const Color(0xFFFFDB4F)),
+                  ),
+                ),
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 8),
+        ElevatedButton(
+          onPressed: () {
+            if (_currentIngredient != null &&
+                _currentUnit != null &&
+                _currentAmount > 0) {
+              setState(() {
+                _selectedIngredients.add({
+                  'id': _currentIngredient!['id'],
+                  'name': _currentIngredient!['name'],
+                  'amount': _currentAmount,
+                  'unit': _currentUnit!,
+                });
+                _currentIngredient = null;
+                _currentAmount = 0;
+                _currentUnit = null;
+              });
+            }
+          },
+          style: ElevatedButton.styleFrom(
+            backgroundColor: const Color(0xFFFF8210),
+          ),
+          child: const Text(
+            'Add Ingredient',
+            style: TextStyle(color: Colors.white),
+          ),
+        ),
+        const SizedBox(height: 16),
+      ],
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -68,8 +410,12 @@ class CreateRecipePageState extends State<CreateRecipePage> {
         children: [
           Container(
             height: 2,
-            // ignore: deprecated_member_use
-            color: const Color.fromARGB(255, 234, 113, 15).withOpacity(0.2),
+            color: const Color.fromARGB(
+              255,
+              234,
+              113,
+              15,
+            ).withValues(alpha: 0.2), // Fixed deprecated withOpacity
           ),
           Expanded(
             child: SingleChildScrollView(
@@ -87,6 +433,7 @@ class CreateRecipePageState extends State<CreateRecipePage> {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
+                        // Image Section
                         Text(
                           "IMAGE",
                           style: TextStyle(
@@ -97,10 +444,7 @@ class CreateRecipePageState extends State<CreateRecipePage> {
                         ),
                         const SizedBox(height: 8),
                         GestureDetector(
-                          onTap: () {
-                            // Implement image upload logic here
-                            debugPrint("Upload image here");
-                          },
+                          onTap: _pickImage,
                           child: Container(
                             width: double.infinity,
                             height: 200,
@@ -108,18 +452,23 @@ class CreateRecipePageState extends State<CreateRecipePage> {
                               color: Colors.grey[200],
                               borderRadius: BorderRadius.circular(8),
                             ),
-                            child: _imagePath != null
-                                ? Image.asset(_imagePath!, fit: BoxFit.cover)
-                                : const Center(
-                                    child: Text(
-                                      "Upload a file here. We recommend using high quality files less than 20 MB.",
-                                      style: TextStyle(color: Color(0xFF9B9B9B)),
-                                      textAlign: TextAlign.center,
+                            child:
+                                _imageFile != null
+                                    ? Image.file(_imageFile!, fit: BoxFit.cover)
+                                    : const Center(
+                                      child: Text(
+                                        "Tap to upload image (less than 20MB)",
+                                        style: TextStyle(
+                                          color: Color(0xFF9B9B9B),
+                                        ),
+                                        textAlign: TextAlign.center,
+                                      ),
                                     ),
-                                  ),
                           ),
                         ),
                         const SizedBox(height: 16),
+
+                        // Category Section
                         Text(
                           "CATEGORY",
                           style: TextStyle(
@@ -131,23 +480,30 @@ class CreateRecipePageState extends State<CreateRecipePage> {
                         const SizedBox(height: 8),
                         DropdownButtonFormField<String>(
                           value: _selectedCategory,
-                          items: <String>[
-                            'Appetizers',
-                            'Beverages',
-                            'Breakfast',
-                            'Desserts',
-                            'Lunch & Dinner',
-                            'Salads',
-                            'Seafood',
-                            'Snacks',
-                            'Soups',
-                            'Vegetarian'
-                          ].map((String value) {
-                            return DropdownMenuItem<String>(
-                              value: value,
-                              child: Text(value),
-                            );
-                          }).toList(),
+                          validator: (value) {
+                            if (value == null || value.isEmpty) {
+                              return 'Please select a category';
+                            }
+                            return null;
+                          },
+                          items:
+                              <String>[
+                                'Appetizers',
+                                'Beverages',
+                                'Breakfast',
+                                'Desserts',
+                                'Lunch & Dinner',
+                                'Salads',
+                                'Seafood',
+                                'Snacks',
+                                'Soups',
+                                'Vegetarian',
+                              ].map((String value) {
+                                return DropdownMenuItem<String>(
+                                  value: value,
+                                  child: Text(value),
+                                );
+                              }).toList(),
                           onChanged: (String? newValue) {
                             setState(() {
                               _selectedCategory = newValue;
@@ -156,28 +512,15 @@ class CreateRecipePageState extends State<CreateRecipePage> {
                           decoration: InputDecoration(
                             border: OutlineInputBorder(
                               borderRadius: BorderRadius.circular(8),
-                              borderSide:
-                                  BorderSide(color: const Color(0xFFFFDB4F)),
-                            ),
-                            focusedBorder: OutlineInputBorder(
-                              borderRadius: BorderRadius.circular(8),
-                              borderSide:
-                                  BorderSide(color: const Color(0xFFFFDB4F)),
-                            ),
-                            enabledBorder: OutlineInputBorder(
-                              borderRadius: BorderRadius.circular(8),
-                              borderSide:
-                                  BorderSide(color: const Color(0xFFFFDB4F)),
+                              borderSide: BorderSide(
+                                color: const Color(0xFFFFDB4F),
+                              ),
                             ),
                           ),
-                          validator: (value) {
-                            if (value == null || value.isEmpty) {
-                              return 'Please select a category';
-                            }
-                            return null;
-                          },
                         ),
                         const SizedBox(height: 16),
+
+                        // Recipe Name
                         Text(
                           "NAME",
                           style: TextStyle(
@@ -191,18 +534,9 @@ class CreateRecipePageState extends State<CreateRecipePage> {
                           decoration: InputDecoration(
                             border: OutlineInputBorder(
                               borderRadius: BorderRadius.circular(8),
-                              borderSide:
-                                  BorderSide(color: const Color(0xFFFFDB4F)),
-                            ),
-                            focusedBorder: OutlineInputBorder(
-                              borderRadius: BorderRadius.circular(8),
-                              borderSide:
-                                  BorderSide(color: const Color(0xFFFFDB4F)),
-                            ),
-                            enabledBorder: OutlineInputBorder(
-                              borderRadius: BorderRadius.circular(8),
-                              borderSide:
-                                  BorderSide(color: const Color(0xFFFFDB4F)),
+                              borderSide: BorderSide(
+                                color: const Color(0xFFFFDB4F),
+                              ),
                             ),
                           ),
                           validator: (value) {
@@ -218,8 +552,180 @@ class CreateRecipePageState extends State<CreateRecipePage> {
                           },
                         ),
                         const SizedBox(height: 16),
+
+                        // Times and Servings
+                        Row(
+                          children: [
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    "PREP TIME",
+                                    style: TextStyle(
+                                      fontSize: 18,
+                                      fontWeight: FontWeight.bold,
+                                      color: const Color(0xFFFFDB4F),
+                                    ),
+                                  ),
+                                  const SizedBox(height: 8),
+                                  TextFormField(
+                                    decoration: InputDecoration(
+                                      border: OutlineInputBorder(
+                                        borderRadius: BorderRadius.circular(8),
+                                        borderSide: BorderSide(
+                                          color: const Color(0xFFFFDB4F),
+                                        ),
+                                      ),
+                                    ),
+                                    validator: (value) {
+                                      if (value == null || value.isEmpty) {
+                                        return 'Required';
+                                      }
+                                      return null;
+                                    },
+                                    onChanged: (value) {
+                                      setState(() {
+                                        _prepTime = value;
+                                      });
+                                    },
+                                  ),
+                                ],
+                              ),
+                            ),
+                            const SizedBox(width: 16),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    "COOK TIME",
+                                    style: TextStyle(
+                                      fontSize: 18,
+                                      fontWeight: FontWeight.bold,
+                                      color: const Color(0xFFFFDB4F),
+                                    ),
+                                  ),
+                                  const SizedBox(height: 8),
+                                  TextFormField(
+                                    decoration: InputDecoration(
+                                      border: OutlineInputBorder(
+                                        borderRadius: BorderRadius.circular(8),
+                                        borderSide: BorderSide(
+                                          color: const Color(0xFFFFDB4F),
+                                        ),
+                                      ),
+                                    ),
+                                    validator: (value) {
+                                      if (value == null || value.isEmpty) {
+                                        return 'Required';
+                                      }
+                                      return null;
+                                    },
+                                    onChanged: (value) {
+                                      setState(() {
+                                        _cookTime = value;
+                                      });
+                                    },
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 16),
+
+                        Row(
+                          children: [
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    "TOTAL TIME",
+                                    style: TextStyle(
+                                      fontSize: 18,
+                                      fontWeight: FontWeight.bold,
+                                      color: const Color(0xFFFFDB4F),
+                                    ),
+                                  ),
+                                  const SizedBox(height: 8),
+                                  TextFormField(
+                                    decoration: InputDecoration(
+                                      border: OutlineInputBorder(
+                                        borderRadius: BorderRadius.circular(8),
+                                        borderSide: BorderSide(
+                                          color: const Color(0xFFFFDB4F),
+                                        ),
+                                      ),
+                                    ),
+                                    validator: (value) {
+                                      if (value == null || value.isEmpty) {
+                                        return 'Required';
+                                      }
+                                      return null;
+                                    },
+                                    onChanged: (value) {
+                                      setState(() {
+                                        _totalTime = value;
+                                      });
+                                    },
+                                  ),
+                                ],
+                              ),
+                            ),
+                            const SizedBox(width: 16),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    "SERVINGS",
+                                    style: TextStyle(
+                                      fontSize: 18,
+                                      fontWeight: FontWeight.bold,
+                                      color: const Color(0xFFFFDB4F),
+                                    ),
+                                  ),
+                                  const SizedBox(height: 8),
+                                  TextFormField(
+                                    keyboardType: TextInputType.number,
+                                    decoration: InputDecoration(
+                                      border: OutlineInputBorder(
+                                        borderRadius: BorderRadius.circular(8),
+                                        borderSide: BorderSide(
+                                          color: const Color(0xFFFFDB4F),
+                                        ),
+                                      ),
+                                    ),
+                                    validator: (value) {
+                                      if (value == null || value.isEmpty) {
+                                        return 'Required';
+                                      }
+                                      if (int.tryParse(value) == null) {
+                                        return 'Enter a number';
+                                      }
+                                      return null;
+                                    },
+                                    onChanged: (value) {
+                                      setState(() {
+                                        _servings = value;
+                                      });
+                                    },
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 16),
+
+                        // Ingredients Section
+                        _buildIngredientsSection(),
+
+                        // Directions Section
                         Text(
-                          "PREP TIME",
+                          "DIRECTIONS",
                           style: TextStyle(
                             fontSize: 18,
                             fontWeight: FontWeight.bold,
@@ -228,38 +734,30 @@ class CreateRecipePageState extends State<CreateRecipePage> {
                         ),
                         const SizedBox(height: 8),
                         TextFormField(
+                          controller: directionsController,
+                          maxLines: 5,
+                          minLines: 3,
                           decoration: InputDecoration(
                             border: OutlineInputBorder(
                               borderRadius: BorderRadius.circular(8),
-                              borderSide:
-                                  BorderSide(color: const Color(0xFFFFDB4F)),
+                              borderSide: BorderSide(
+                                color: const Color(0xFFFFDB4F),
+                              ),
                             ),
-                            focusedBorder: OutlineInputBorder(
-                              borderRadius: BorderRadius.circular(8),
-                              borderSide:
-                                  BorderSide(color: const Color(0xFFFFDB4F)),
-                            ),
-                            enabledBorder: OutlineInputBorder(
-                              borderRadius: BorderRadius.circular(8),
-                              borderSide:
-                                  BorderSide(color: const Color(0xFFFFDB4F)),
-                            ),
+                            hintText: 'Enter each step on a new line',
                           ),
                           validator: (value) {
                             if (value == null || value.isEmpty) {
-                              return 'Please enter prep time';
+                              return 'Please enter directions';
                             }
                             return null;
                           },
-                          onChanged: (value) {
-                            setState(() {
-                              _prepTime = value;
-                            });
-                          },
                         ),
                         const SizedBox(height: 16),
+
+                        // Nutritional Info
                         Text(
-                          "COOK TIME",
+                          "NUTRITIONAL INFO",
                           style: TextStyle(
                             fontSize: 18,
                             fontWeight: FontWeight.bold,
@@ -268,123 +766,25 @@ class CreateRecipePageState extends State<CreateRecipePage> {
                         ),
                         const SizedBox(height: 8),
                         TextFormField(
+                          controller: nutritionalController,
+                          maxLines: 5,
+                          minLines: 3,
                           decoration: InputDecoration(
                             border: OutlineInputBorder(
                               borderRadius: BorderRadius.circular(8),
-                              borderSide:
-                                  BorderSide(color: const Color(0xFFFFDB4F)),
+                              borderSide: BorderSide(
+                                color: const Color(0xFFFFDB4F),
+                              ),
                             ),
-                            focusedBorder: OutlineInputBorder(
-                              borderRadius: BorderRadius.circular(8),
-                              borderSide:
-                                  BorderSide(color: const Color(0xFFFFDB4F)),
-                            ),
-                            enabledBorder: OutlineInputBorder(
-                              borderRadius: BorderRadius.circular(8),
-                              borderSide:
-                                  BorderSide(color: const Color(0xFFFFDB4F)),
-                            ),
+                            hintText:
+                                'Enter each item on a new line (e.g., Calories: 250)',
                           ),
-                          validator: (value) {
-                            if (value == null || value.isEmpty) {
-                              return 'Please enter cook time';
-                            }
-                            return null;
-                          },
-                          onChanged: (value) {
-                            setState(() {
-                              _cookTime = value;
-                            });
-                          },
                         ),
                         const SizedBox(height: 16),
+
+                        // Video Tutorial
                         Text(
-                          "TOTAL TIME",
-                          style: TextStyle(
-                            fontSize: 18,
-                            fontWeight: FontWeight.bold,
-                            color: const Color(0xFFFFDB4F),
-                          ),
-                        ),
-                        const SizedBox(height: 8),
-                        TextFormField(
-                          decoration: InputDecoration(
-                            border: OutlineInputBorder(
-                              borderRadius: BorderRadius.circular(8),
-                              borderSide:
-                                  BorderSide(color: const Color(0xFFFFDB4F)),
-                            ),
-                            focusedBorder: OutlineInputBorder(
-                              borderRadius: BorderRadius.circular(8),
-                              borderSide:
-                                  BorderSide(color: const Color(0xFFFFDB4F)),
-                            ),
-                            enabledBorder: OutlineInputBorder(
-                              borderRadius: BorderRadius.circular(8),
-                              borderSide:
-                                  BorderSide(color: const Color(0xFFFFDB4F)),
-                            ),
-                          ),
-                          validator: (value) {
-                            if (value == null || value.isEmpty) {
-                              return 'Please enter total time';
-                            }
-                            return null;
-                          },
-                          onChanged: (value) {
-                            setState(() {
-                              _totalTime = value;
-                            });
-                          },
-                        ),
-                        const SizedBox(height: 16),
-                        Text(
-                          "SERVINGS",
-                          style: TextStyle(
-                            fontSize: 18,
-                            fontWeight: FontWeight.bold,
-                            color: const Color(0xFFFFDB4F),
-                          ),
-                        ),
-                        const SizedBox(height: 8),
-                        TextFormField(
-                          decoration: InputDecoration(
-                            border: OutlineInputBorder(
-                              borderRadius: BorderRadius.circular(8),
-                              borderSide:
-                                  BorderSide(color: const Color(0xFFFFDB4F)),
-                            ),
-                            focusedBorder: OutlineInputBorder(
-                              borderRadius: BorderRadius.circular(8),
-                              borderSide:
-                                  BorderSide(color: const Color(0xFFFFDB4F)),
-                            ),
-                            enabledBorder: OutlineInputBorder(
-                              borderRadius: BorderRadius.circular(8),
-                              borderSide:
-                                  BorderSide(color: const Color(0xFFFFDB4F)),
-                            ),
-                          ),
-                          validator: (value) {
-                            if (value == null || value.isEmpty) {
-                              return 'Please enter servings';
-                            }
-                            return null;
-                          },
-                          onChanged: (value) {
-                            setState(() {
-                              _servings = value;
-                            });
-                          },
-                        ),
-                        const SizedBox(height: 16),
-                        _buildSection("INGREDIENTS", ingredientsController),
-                        _buildSection("DIRECTIONS", directionsController),
-                        _buildSection(
-                            "NUTRITIONAL INFORMATION (PER SERVING)",
-                            nutritionalController),
-                        Text(
-                          "TUTORIAL",
+                          "TUTORIAL VIDEO (OPTIONAL)",
                           style: TextStyle(
                             fontSize: 18,
                             fontWeight: FontWeight.bold,
@@ -393,34 +793,40 @@ class CreateRecipePageState extends State<CreateRecipePage> {
                         ),
                         const SizedBox(height: 8),
                         GestureDetector(
-                          onTap: () {
-                            // Implement video upload logic
-                            debugPrint("Upload video here");
-                          },
+                          onTap: _pickVideo,
                           child: Container(
                             width: double.infinity,
                             height: 200,
                             decoration: BoxDecoration(
                               color: Colors.white,
                               borderRadius: BorderRadius.circular(8),
-                              border:
-                                  Border.all(color: const Color(0xFFFFDB4F)),
+                              border: Border.all(
+                                color: const Color(0xFFFFDB4F),
+                              ),
                             ),
-                            child: _hasVideo
-                                ? const Center(
-                                    child: Icon(Icons.videocam,
-                                        color: Colors.grey, size: 50),
-                                  )
-                                : const Center(
-                                    child: Text(
-                                      "Tap to add video",
-                                      style: TextStyle(
-                                          color: Colors.black, fontSize: 16),
+                            child:
+                                _videoFile != null
+                                    ? const Center(
+                                      child: Icon(
+                                        Icons.videocam,
+                                        size: 50,
+                                        color: Colors.grey,
+                                      ),
+                                    )
+                                    : const Center(
+                                      child: Text(
+                                        "Tap to upload video",
+                                        style: TextStyle(
+                                          color: Colors.black,
+                                          fontSize: 16,
+                                        ),
+                                      ),
                                     ),
-                                  ),
                           ),
                         ),
-                        const SizedBox(height: 8),
+                        const SizedBox(height: 16),
+
+                        // Error Message
                         if (_errorMessage.isNotEmpty)
                           Padding(
                             padding: const EdgeInsets.only(bottom: 8.0),
@@ -429,28 +835,19 @@ class CreateRecipePageState extends State<CreateRecipePage> {
                               style: const TextStyle(color: Colors.red),
                             ),
                           ),
+
+                        // Action Buttons
                         Row(
                           mainAxisAlignment: MainAxisAlignment.spaceEvenly,
                           children: [
                             _buildButton("DISCARD", () {
                               Navigator.pop(context);
                             }),
-                            _buildButton("POST", () {
-                              if (_formKey.currentState!.validate()) {
-                                // Form is valid, post recipe
-                                // ignore: avoid_print
-                                print('Posting recipe...');
-                                // Implement post recipe logic here
-                                setState(() {
-                                  _errorMessage = ''; // Clear error message
-                                });
-                              } else {
-                                setState(() {
-                                  _errorMessage =
-                                      'Oops! It looks like you missed a few things. Please fill in all the required fields to post.';
-                                });
-                              }
-                            }),
+                            _buildButton(
+                              "POST",
+                              _postRecipe,
+                              isLoading: _isLoading,
+                            ),
                           ],
                         ),
                       ],
@@ -466,107 +863,48 @@ class CreateRecipePageState extends State<CreateRecipePage> {
     );
   }
 
-  Widget _buildSection(String title, TextEditingController controller) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
-          title,
-          style: TextStyle(
-            fontSize: 18,
-            fontWeight: FontWeight.bold,
-            color: const Color(0xFFFFDB4F),
-          ),
-        ),
-        const SizedBox(height: 8),
-        Container(
-          padding: const EdgeInsets.all(8),
-          decoration: BoxDecoration(
-            color: Colors.white,
-            borderRadius: BorderRadius.circular(8),
-            border: Border.all(color: const Color(0xFFFFDB4F)),
-          ),
-          child: TextField(
-            controller: controller,
-            maxLines: 10, // Increased maxLines
-            minLines: 5,
-            keyboardType: TextInputType.multiline,
-            style: const TextStyle(fontSize: 16, color: Colors.black),
-            decoration: const InputDecoration(
-              border: InputBorder.none,
-              isDense: true,
-            ),
-          ),
-        ),
-        const SizedBox(height: 16),
-      ],
-    );
-  }
-
-  Widget _buildButton(String text, VoidCallback onPressed) {
+  Widget _buildButton(
+    String text,
+    VoidCallback onPressed, {
+    bool isLoading = false,
+  }) {
     return ElevatedButton(
-      onPressed: onPressed,
+      onPressed: isLoading ? null : onPressed,
       style: ElevatedButton.styleFrom(
         backgroundColor: const Color(0xFFFF8210),
         padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
       ),
-      child: Text(
-        text,
-        style: const TextStyle(fontSize: 18, color: Colors.white),
-      ),
+      child:
+          isLoading
+              ? const SizedBox(
+                width: 20,
+                height: 20,
+                child: CircularProgressIndicator(
+                  valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                  strokeWidth: 2,
+                ),
+              )
+              : Text(
+                text,
+                style: const TextStyle(fontSize: 18, color: Colors.white),
+              ),
     );
   }
 
   Widget _buildBottomNavBar() {
-    return Container(
-      decoration: BoxDecoration(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(30)),
-      ),
-      child: ClipRRect(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(30)),
-        child: BottomNavigationBar(
-          currentIndex: selectedBottomIndex,
-          onTap: (index) {
-            setState(() {
-              selectedBottomIndex = index;
-            });
-          },
-          showSelectedLabels: false,
-          showUnselectedLabels: false,
-          items: [
-            BottomNavigationBarItem(
-              icon: Image.asset(
-                selectedBottomIndex == 0
-                    ? 'assets/HomeIconOnClick.png'
-                    : 'assets/home.png',
-                width: 24,
-                height: 24,
-              ),
-              label: '',
-            ),
-            BottomNavigationBarItem(
-              icon: Image.asset(
-                selectedBottomIndex == 1
-                    ? 'assets/ExploreIconOnClick.png'
-                    : 'assets/search.png',
-                width: 24,
-                height: 24,
-              ),
-              label: '',
-            ),
-            BottomNavigationBarItem(
-              icon: Image.asset(
-                selectedBottomIndex == 2
-                    ? 'assets/MyProfileIconOnClick.png'
-                    : 'assets/profile.png',
-                width: 24,
-                height: 24,
-              ),
-              label: '',
-            ),
-          ],
-        ),
-      ),
+    return BottomNavigationBar(
+      currentIndex: selectedBottomIndex,
+      onTap: (index) {
+        setState(() {
+          selectedBottomIndex = index;
+        });
+      },
+      selectedItemColor: const Color(0xFFFF8210),
+      items: const [
+        BottomNavigationBarItem(icon: Icon(Icons.home), label: 'Home'),
+        BottomNavigationBarItem(icon: Icon(Icons.search), label: 'Search'),
+        BottomNavigationBarItem(icon: Icon(Icons.person), label: 'Profile'),
+      ],
     );
   }
 }

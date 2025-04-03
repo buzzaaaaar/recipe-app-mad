@@ -13,10 +13,6 @@ class AuthService {
     required String username,
   }) async {
     try {
-      // Verify Auth is initialized
-      if (_auth.app == null) {
-        throw Exception("Firebase Auth not initialized");
-      }
       // Create user with email and password
       UserCredential userCredential = await _auth
           .createUserWithEmailAndPassword(email: email, password: password);

@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:flutter_application_2/Components/RecipeCard2.dart';
+import '../Components/RecipeCard2.dart';
 
 class ProfilePage extends StatefulWidget {
   @override

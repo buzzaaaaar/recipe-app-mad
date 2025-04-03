@@ -1,21 +1,16 @@
-import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/material.dart';
 import 'loginpage.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'services/auth_service.dart';
-import 'firebase_options.dart';
 
 class SignUpPage extends StatefulWidget {
   const SignUpPage({super.key});
-  
 
   @override
   SignUpPageState createState() => SignUpPageState();
-  
 }
 
 class SignUpPageState extends State<SignUpPage> {
-  
   final _usernameController = TextEditingController();
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
@@ -320,7 +315,7 @@ class SignUpPageState extends State<SignUpPage> {
       } catch (e) {
         // Handle other errors
         print('General Error: $e');
-        
+
         setState(() {
           _errorMessage = 'Error: $e';
         });
