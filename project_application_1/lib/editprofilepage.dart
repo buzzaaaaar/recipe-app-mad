@@ -97,12 +97,19 @@ class EditProfilePageState extends State<EditProfilePage> {
                               color: Colors.grey[200],
                               borderRadius: BorderRadius.circular(8),
                             ),
-                            child: _imagePath != null
-                                ? Image.asset(_imagePath!, fit: BoxFit.cover)
-                                : const Center(
-                                    child: Icon(Icons.person,
-                                        size: 50, color: Colors.grey),
-                                  ),
+                            child:
+                                _imagePath != null
+                                    ? Image.asset(
+                                      _imagePath!,
+                                      fit: BoxFit.cover,
+                                    )
+                                    : const Center(
+                                      child: Icon(
+                                        Icons.person,
+                                        size: 50,
+                                        color: Colors.grey,
+                                      ),
+                                    ),
                           ),
                         ),
                         const SizedBox(height: 16),
@@ -121,18 +128,21 @@ class EditProfilePageState extends State<EditProfilePage> {
                           decoration: InputDecoration(
                             border: OutlineInputBorder(
                               borderRadius: BorderRadius.circular(8),
-                              borderSide:
-                                  BorderSide(color: const Color(0xFFFFDB4F)),
+                              borderSide: BorderSide(
+                                color: const Color(0xFFFFDB4F),
+                              ),
                             ),
                             focusedBorder: OutlineInputBorder(
                               borderRadius: BorderRadius.circular(8),
-                              borderSide:
-                                  BorderSide(color: const Color(0xFFFFDB4F)),
+                              borderSide: BorderSide(
+                                color: const Color(0xFFFFDB4F),
+                              ),
                             ),
                             enabledBorder: OutlineInputBorder(
                               borderRadius: BorderRadius.circular(8),
-                              borderSide:
-                                  BorderSide(color: const Color(0xFFFFDB4F)),
+                              borderSide: BorderSide(
+                                color: const Color(0xFFFFDB4F),
+                              ),
                             ),
                           ),
                           validator: (value) {
@@ -166,18 +176,21 @@ class EditProfilePageState extends State<EditProfilePage> {
                           decoration: InputDecoration(
                             border: OutlineInputBorder(
                               borderRadius: BorderRadius.circular(8),
-                              borderSide:
-                                  BorderSide(color: const Color(0xFFFFDB4F)),
+                              borderSide: BorderSide(
+                                color: const Color(0xFFFFDB4F),
+                              ),
                             ),
                             focusedBorder: OutlineInputBorder(
                               borderRadius: BorderRadius.circular(8),
-                              borderSide:
-                                  BorderSide(color: const Color(0xFFFFDB4F)),
+                              borderSide: BorderSide(
+                                color: const Color(0xFFFFDB4F),
+                              ),
                             ),
                             enabledBorder: OutlineInputBorder(
                               borderRadius: BorderRadius.circular(8),
-                              borderSide:
-                                  BorderSide(color: const Color(0xFFFFDB4F)),
+                              borderSide: BorderSide(
+                                color: const Color(0xFFFFDB4F),
+                              ),
                             ),
                           ),
                           validator: (value) {
@@ -212,18 +225,21 @@ class EditProfilePageState extends State<EditProfilePage> {
                           decoration: InputDecoration(
                             border: OutlineInputBorder(
                               borderRadius: BorderRadius.circular(8),
-                              borderSide:
-                                  BorderSide(color: const Color(0xFFFFDB4F)),
+                              borderSide: BorderSide(
+                                color: const Color(0xFFFFDB4F),
+                              ),
                             ),
                             focusedBorder: OutlineInputBorder(
                               borderRadius: BorderRadius.circular(8),
-                              borderSide:
-                                  BorderSide(color: const Color(0xFFFFDB4F)),
+                              borderSide: BorderSide(
+                                color: const Color(0xFFFFDB4F),
+                              ),
                             ),
                             enabledBorder: OutlineInputBorder(
                               borderRadius: BorderRadius.circular(8),
-                              borderSide:
-                                  BorderSide(color: const Color(0xFFFFDB4F)),
+                              borderSide: BorderSide(
+                                color: const Color(0xFFFFDB4F),
+                              ),
                             ),
                           ),
                           validator: (value) {
@@ -258,18 +274,21 @@ class EditProfilePageState extends State<EditProfilePage> {
                           decoration: InputDecoration(
                             border: OutlineInputBorder(
                               borderRadius: BorderRadius.circular(8),
-                              borderSide:
-                                  BorderSide(color: const Color(0xFFFFDB4F)),
+                              borderSide: BorderSide(
+                                color: const Color(0xFFFFDB4F),
+                              ),
                             ),
                             focusedBorder: OutlineInputBorder(
                               borderRadius: BorderRadius.circular(8),
-                              borderSide:
-                                  BorderSide(color: const Color(0xFFFFDB4F)),
+                              borderSide: BorderSide(
+                                color: const Color(0xFFFFDB4F),
+                              ),
                             ),
                             enabledBorder: OutlineInputBorder(
                               borderRadius: BorderRadius.circular(8),
-                              borderSide:
-                                  BorderSide(color: const Color(0xFFFFDB4F)),
+                              borderSide: BorderSide(
+                                color: const Color(0xFFFFDB4F),
+                              ),
                             ),
                           ),
                           validator: (value) {
@@ -334,7 +353,8 @@ class EditProfilePageState extends State<EditProfilePage> {
         return AlertDialog(
           title: const Text("Remove Profile Picture"),
           content: const Text(
-              "Are you sure you want to remove your profile picture?"),
+            "Are you sure you want to remove your profile picture?",
+          ),
           actions: [
             TextButton(
               onPressed: () {

@@ -13,6 +13,7 @@ class Recipe {
   final List<String> directions;
   final Map<String, dynamic> nutritionalInfo;
   final String userId;
+  final String author;
   final DateTime createdAt;
 
   Recipe({
@@ -28,6 +29,7 @@ class Recipe {
     required this.directions,
     required this.nutritionalInfo,
     required this.userId,
+    required this.author,
     required this.createdAt,
   });
 
@@ -41,12 +43,15 @@ class Recipe {
       servings: data['servings'] ?? 0,
       imageUrl: data['imageUrl'],
       videoUrl: data['videoUrl'],
-      ingredients: (data['ingredients'] as List<dynamic>?)
-          ?.map((i) => RecipeIngredient.fromMap(i))
-          .toList() ?? [],
+      ingredients:
+          (data['ingredients'] as List<dynamic>?)
+              ?.map((i) => RecipeIngredient.fromMap(i))
+              .toList() ??
+          [],
       directions: (data['directions'] as List<dynamic>?)?.cast<String>() ?? [],
       nutritionalInfo: (data['nutritionalInfo'] as Map<String, dynamic>?) ?? {},
       userId: data['userId'] ?? '',
+      author: data['author'] ?? 'Unknown',
       createdAt: (data['createdAt'] as Timestamp?)?.toDate() ?? DateTime.now(),
     );
   }
@@ -64,6 +69,7 @@ class Recipe {
       'directions': directions,
       'nutritionalInfo': nutritionalInfo,
       'userId': userId,
+      'author': author,
       'createdAt': Timestamp.fromDate(createdAt),
     };
   }
@@ -89,10 +95,6 @@ class RecipeIngredient {
   }
 
   Map<String, dynamic> toMap() {
-    return {
-      'ingredientId': ingredientId,
-      'amount': amount,
-      'unit': unit,
-    };
+    return {'ingredientId': ingredientId, 'amount': amount, 'unit': unit};
   }
 }

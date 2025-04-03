@@ -135,6 +135,7 @@ class CreateRecipePageState extends State<CreateRecipePage> {
     }
   }
 
+  // lib/createrecipepage.dart
   Future<void> _postRecipe() async {
     if (!_formKey.currentState!.validate() || _selectedIngredients.isEmpty) {
       setState(() {
@@ -151,6 +152,33 @@ class CreateRecipePageState extends State<CreateRecipePage> {
     });
 
     try {
+      // Get current user
+      final user = FirebaseAuth.instance.currentUser;
+      if (user == null) {
+        setState(() {
+          _errorMessage = 'User not authenticated';
+          _isLoading = false;
+        });
+        return;
+      }
+
+      // Get user data from Firestore
+      final userDoc =
+          await FirebaseFirestore.instance
+              .collection('users')
+              .doc(user.uid)
+              .get();
+
+      if (!userDoc.exists) {
+        setState(() {
+          _errorMessage = 'User data not found';
+          _isLoading = false;
+        });
+        return;
+      }
+
+      final username = userDoc.data()?['username'] ?? 'Unknown';
+
       // Upload image and video if they exist
       String? imageUrl;
       String? videoUrl;
@@ -189,7 +217,8 @@ class CreateRecipePageState extends State<CreateRecipePage> {
         'nutritionalInfo': _parseNutritionalInfo(nutritionalController.text),
         'imageUrl': imageUrl,
         'videoUrl': videoUrl,
-        'userId': FirebaseAuth.instance.currentUser?.uid ?? '',
+        'userId': user.uid,
+        'author': username, // Add the username as author
         'createdAt': Timestamp.now(),
       };
 
