@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import '../Components/RecipeCard2.dart';
+import '../screens/home_page.dart';
+import '../screens/explore_page.dart';
 
 class ProfilePage extends StatefulWidget {
   @override
@@ -44,7 +46,7 @@ class _ProfilePageState extends State<ProfilePage> {
                     fontWeight: FontWeight.w700,
                   ),
                 ),
-                SizedBox(height: 10),
+                SizedBox(height: 10), 
 
                 // List of followers
                 ListTile(leading: CircleAvatar(), title: Text("Follower 1")),
@@ -121,10 +123,34 @@ class _ProfilePageState extends State<ProfilePage> {
 
   bool isTappedLeft = false;
   bool isTappedRight = false;
+  
+  // Function to handle page navigation
+  void _onItemTapped(int index) {
+    setState(() {
+      _selectedIndex = index;
+    });
+
+    if (index == 0) {
+      Navigator.pushReplacement(
+        context,
+        MaterialPageRoute(builder: (context) => HomePage()),
+      );
+    } else if (index == 1) {
+      Navigator.pushReplacement(
+        context,
+        MaterialPageRoute(builder: (context) => ExplorePage()),
+      );
+    } else if (index == 2) {
+      Navigator.pushReplacement(
+        context,
+        MaterialPageRoute(builder: (context) => ProfilePage()),
+      );
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      //app bar
       appBar: AppBar(
         centerTitle: true,
         title: Text(
@@ -147,7 +173,6 @@ class _ProfilePageState extends State<ProfilePage> {
             mainAxisAlignment: MainAxisAlignment.end,
             children: [
               IconButton(
-                //menu button
                 icon: Icon(Icons.more_horiz, color: Color(0xFFFF8210)),
                 onPressed: _showMenuOptions,
               ),
@@ -159,18 +184,16 @@ class _ProfilePageState extends State<ProfilePage> {
         padding: EdgeInsets.all(16),
         child: Column(
           children: [
-            //profile image
+            // Profile image and other content
             Expanded(
               child: Column(
                 children: [
                   CircleAvatar(
                     radius: 70,
                     backgroundImage: AssetImage('images/ProfileImage.png'),
-                    backgroundColor:
-                        Colors.transparent, // Make background transparent
+                    backgroundColor: Colors.transparent,
                   ),
                   SizedBox(height: 10),
-                  //user name
                   Text(
                     "JohnDoe123",
                     style: TextStyle(
@@ -180,7 +203,6 @@ class _ProfilePageState extends State<ProfilePage> {
                     ),
                   ),
                   SizedBox(height: 5),
-                  // Followers & Following Section
                   Row(
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
@@ -199,14 +221,7 @@ class _ProfilePageState extends State<ProfilePage> {
                             fontWeight: FontWeight.w600,
                             fontSize: 18,
                             decoration:
-                                isTappedLeft
-                                    ? TextDecoration.underline
-                                    : TextDecoration.none,
-                            decorationColor:
-                                isTappedRight
-                                    ? Color(0xff0eddd2)
-                                    : Colors
-                                        .transparent, // Color of the underline
+                                isTappedLeft ? TextDecoration.underline : TextDecoration.none,
                           ),
                         ),
                       ),
@@ -215,7 +230,7 @@ class _ProfilePageState extends State<ProfilePage> {
                         height: 20,
                         width: 2,
                         color: Color(0xff0eddd2),
-                      ), // Divider
+                      ),
                       SizedBox(width: 15),
                       GestureDetector(
                         onTap: () {
@@ -232,35 +247,24 @@ class _ProfilePageState extends State<ProfilePage> {
                             fontWeight: FontWeight.w600,
                             fontSize: 18,
                             decoration:
-                                isTappedRight
-                                    ? TextDecoration.underline
-                                    : TextDecoration.none,
-                            decorationColor:
-                                isTappedRight
-                                    ? Color(0xff0eddd2)
-                                    : Colors
-                                        .transparent, // Color of the underline
+                                isTappedRight ? TextDecoration.underline : TextDecoration.none,
                           ),
                         ),
                       ),
                     ],
                   ),
                   SizedBox(height: 20),
-
-                  SizedBox(height: 20),
+                  // Created and Saved buttons
                   Row(
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
-                      // CREATED button
                       OutlinedButton(
-                        onPressed:
-                            () => setState(() => isCreatedSelected = true),
+                        onPressed: () => setState(() => isCreatedSelected = true),
                         style: OutlinedButton.styleFrom(
                           side: BorderSide(color: Color(0xffffdb4f)),
-                          backgroundColor:
-                              isCreatedSelected
-                                  ? Color(0xffffdb4f)
-                                  : Color(0xffffffff),
+                          backgroundColor: isCreatedSelected
+                              ? Color(0xffffdb4f)
+                              : Color(0xffffffff),
                         ),
                         child: Text(
                           "CREATED",
@@ -268,24 +272,20 @@ class _ProfilePageState extends State<ProfilePage> {
                             fontFamily: 'AlbertSans',
                             fontWeight: FontWeight.w500,
                             fontSize: 18,
-                            color:
-                                isCreatedSelected
-                                    ? Color(0xffffffff)
-                                    : Color(0xffffdb4f),
+                            color: isCreatedSelected
+                                ? Color(0xffffffff)
+                                : Color(0xffffdb4f),
                           ),
                         ),
                       ),
                       SizedBox(width: 10),
-                      // SAVED Button
                       OutlinedButton(
-                        onPressed:
-                            () => setState(() => isCreatedSelected = false),
+                        onPressed: () => setState(() => isCreatedSelected = false),
                         style: OutlinedButton.styleFrom(
                           side: BorderSide(color: Color(0xffffdb4f), width: 2),
-                          backgroundColor:
-                              !isCreatedSelected
-                                  ? Color(0xffffdb4f)
-                                  : Color(0xffffffff),
+                          backgroundColor: !isCreatedSelected
+                              ? Color(0xffffdb4f)
+                              : Color(0xffffffff),
                         ),
                         child: Text(
                           "SAVED",
@@ -293,10 +293,9 @@ class _ProfilePageState extends State<ProfilePage> {
                             fontFamily: 'AlbertSans',
                             fontWeight: FontWeight.w500,
                             fontSize: 18,
-                            color:
-                                !isCreatedSelected
-                                    ? Color(0xffffffff)
-                                    : Color(0xffffdb4f),
+                            color: !isCreatedSelected
+                                ? Color(0xffffffff)
+                                : Color(0xffffdb4f),
                           ),
                         ),
                       ),
@@ -305,121 +304,92 @@ class _ProfilePageState extends State<ProfilePage> {
                 ],
               ),
             ),
-
+            // Content for CREATED or SAVED state
             Expanded(
-              child:
-                  isCreatedSelected
-                      ? Column(
-                        children: [
-                          Row(
-                            children: [
-                              // "Add" icon box
-                              Expanded(
-                                child: Container(
-                                  height: 220.0,
-                                  decoration: BoxDecoration(
-                                    color: Colors.white,
-                                    borderRadius: BorderRadius.circular(20.0),
-                                    border: Border.all(
-                                      color: Colors.grey,
-                                      width: 0.5,
-                                    ),
-                                  ),
-                                  child: Align(
-                                    alignment:
-                                        Alignment.center, // Center the icon
-                                    child: Icon(
-                                      Icons.add,
-                                      size:
-                                          70.0, // You can adjust the size of the icon here
-                                      color: Color(0xffffdb4f),
-                                      // Icon color
-                                    ),
+              child: isCreatedSelected
+                  ? Column(
+                      children: [
+                        Row(
+                          children: [
+                            Expanded(
+                              child: Container(
+                                height: 220.0,
+                                decoration: BoxDecoration(
+                                  color: Colors.white,
+                                  borderRadius: BorderRadius.circular(20.0),
+                                  border: Border.all(color: Colors.grey, width: 0.5),
+                                ),
+                                child: Align(
+                                  alignment: Alignment.center,
+                                  child: Icon(Icons.add, size: 70.0, color: Color(0xffffdb4f)),
+                                ),
+                              ),
+                            ),
+                            SizedBox(width: 5),
+                            Expanded(
+                              child: Container(
+                                decoration: BoxDecoration(
+                                  color: Color(0xffffffff),
+                                  borderRadius: BorderRadius.circular(20.0),
+                                ),
+                                child: Align(
+                                  alignment: Alignment.center,
+                                  child: RecipeCard2(
+                                    image: 'images/ChocolateChipCookies.jpg',
+                                    title: "Chocolate Chip Cookies",
+                                    rating: "3.7",
+                                    reviews: "2",
                                   ),
                                 ),
                               ),
-
-                              SizedBox(width: 5), // Space between the two boxes
-                              // Recipe box without border color
-                              Expanded(
-                                child: Container(
-                                  decoration: BoxDecoration(
-                                    color: Color(0xffffffff),
-                                    borderRadius: BorderRadius.circular(20.0),
-                                    // Removed border color here
-                                  ),
-                                  child: Align(
-                                    alignment:
-                                        Alignment.center, // Center the content
-                                    child: RecipeCard2(
-                                      image: 'images/ChocolateChipCookies.jpg',
-                                      title: "Chocolate Chip Cookies",
-                                      rating: "3.7",
-                                      reviews: "2",
-                                    ),
+                            ),
+                          ],
+                        ),
+                      ],
+                    )
+                  : Column(
+                      children: [
+                        Row(
+                          children: [
+                            Expanded(
+                              child: Container(
+                                decoration: BoxDecoration(
+                                  color: Color(0xffffffff),
+                                  borderRadius: BorderRadius.circular(20.0),
+                                ),
+                                child: Align(
+                                  alignment: Alignment.center,
+                                  child: RecipeCard2(
+                                    image: 'images/FluffyPancakes.jpg',
+                                    title: "Fluffy Pancakes",
+                                    rating: "4.0",
+                                    reviews: "2",
                                   ),
                                 ),
                               ),
-                            ],
-                          ),
-                          SizedBox(height: 20), // Space below the row
-                          // Additional content or padding below
-                          // You can add more widgets here if needed
-                        ],
-                      )
-                      : Column(
-                        children: [
-                          Row(
-                            children: [
-                              // "Add" icon box
-                              Expanded(
-                                child: Container(
-                                  decoration: BoxDecoration(
-                                    color: Color(0xffffffff),
-                                    borderRadius: BorderRadius.circular(20.0),
-                                    // Removed border color here
-                                  ),
-                                  child: Align(
-                                    alignment:
-                                        Alignment.center, // Center the content
-                                    child: RecipeCard2(
-                                      image: 'images/FluffyPancakes.jpg',
-                                      title: "Fluffy Pancakes",
-                                      rating: "4.0",
-                                      reviews: "2",
-                                    ),
+                            ),
+                            SizedBox(width: 2),
+                            Expanded(
+                              child: Container(
+                                decoration: BoxDecoration(
+                                  color: Color(0xffffffff),
+                                  borderRadius: BorderRadius.circular(20.0),
+                                ),
+                                child: Align(
+                                  alignment: Alignment.center,
+                                  child: RecipeCard2(
+                                    image: 'images/ChocolateChipCookies.jpg',
+                                    title: "Chocolate Chip Cookies",
+                                    rating: "3.7",
+                                    reviews: "2",
                                   ),
                                 ),
                               ),
-
-                              SizedBox(width: 2), // Space between the two boxes
-                              // Recipe box without border color
-                              Expanded(
-                                child: Container(
-                                  decoration: BoxDecoration(
-                                    color: Color(0xffffffff),
-                                    borderRadius: BorderRadius.circular(20.0),
-                                    // Removed border color here
-                                  ),
-                                  child: Align(
-                                    alignment:
-                                        Alignment.center, // Center the content
-                                    child: RecipeCard2(
-                                      image: 'images/ChocolateChipCookies.jpg',
-                                      title: "Chocolate Chip Cookies",
-                                      rating: "3.7",
-                                      reviews: "2",
-                                    ),
-                                  ),
-                                ),
-                              ),
-                            ],
-                          ),
-                          SizedBox(height: 20), // Space below the row
-                          // Additional content or padding below
-                          // You can add more widgets here if needed
-                        ],
-                      ),
+                            ),
+                          ],
+                        ),
+                      ],
+                    ),
             ),
           ],
         ),
@@ -428,50 +398,32 @@ class _ProfilePageState extends State<ProfilePage> {
       // Bottom Navigation Bar
       bottomNavigationBar: Container(
         decoration: BoxDecoration(
-          borderRadius: BorderRadius.only(
-            topLeft: Radius.circular(20.0),
-            topRight: Radius.circular(20.0),
-          ),
+          borderRadius: BorderRadius.only(topLeft: Radius.circular(20.0), topRight: Radius.circular(20.0)),
           border: Border.all(color: Color(0xff9b9b9b), width: 1.0),
         ),
         child: ClipRRect(
-          borderRadius: BorderRadius.only(
-            topLeft: Radius.circular(80.0),
-            topRight: Radius.circular(80.0),
-          ),
+          borderRadius: BorderRadius.only(topLeft: Radius.circular(80.0), topRight: Radius.circular(80.0)),
           child: SizedBox(
-            height: 80, // Change this value to adjust height
+            height: 80,
             child: BottomNavigationBar(
-              backgroundColor: const Color.fromARGB(255, 255, 255, 255),
+              backgroundColor: Color.fromARGB(255, 255, 255, 255),
               selectedItemColor: Color(0xFFFF8210),
               unselectedItemColor: Color(0xff9b9b9b),
               showSelectedLabels: false,
               showUnselectedLabels: false,
               currentIndex: _selectedIndex,
-              onTap: (index) => setState(() => _selectedIndex = index),
+              onTap: _onItemTapped,
               items: [
                 BottomNavigationBarItem(
-                  icon: Image.asset(
-                    'images/HomeIcon.png',
-                    width: 30,
-                    height: 30,
-                  ),
+                  icon: Image.asset('images/HomeIcon.png', width: 30, height: 30),
                   label: "",
                 ),
                 BottomNavigationBarItem(
-                  icon: Image.asset(
-                    'images/ExploreIcon.png',
-                    width: 30,
-                    height: 30,
-                  ),
+                  icon: Image.asset('images/ExploreIcon.png', width: 30, height: 30),
                   label: "",
                 ),
                 BottomNavigationBarItem(
-                  icon: Image.asset(
-                    'images/MyProfileIcon.png',
-                    width: 30,
-                    height: 30,
-                  ),
+                  icon: Image.asset('images/MyProfileIcon.png', width: 30, height: 30),
                   label: "",
                 ),
               ],

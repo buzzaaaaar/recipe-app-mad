@@ -1,5 +1,6 @@
 import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/material.dart';
+import '../screens/home_page.dart';
 import 'firebase_options.dart';
 import 'loginorsignuppage.dart';
 
@@ -18,7 +19,7 @@ class MyApp extends StatelessWidget {
   Widget build(BuildContext context) {
     return MaterialApp(
       debugShowCheckedModeBanner: false,
-      home: const LoadingScreen(),
+      home: HomePage(),
     );
   }
 }

@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import '../Components/RecipeCard.dart';
+import '../screens/explore_page.dart';
+import '../screens/home_page.dart';
 
 class UserProfilePage extends StatefulWidget {
   @override
@@ -71,6 +73,25 @@ class _UserProfilePageState extends State<UserProfilePage> {
 
   bool isTappedLeft = false;
   bool isTappedRight = false;
+
+  // void _onItemTapped(int index) {
+  //   if (index == 2) {
+  //     Navigator.pushReplacement(
+  //       context,
+  //       MaterialPageRoute(builder: (context) => HomePage()),
+  //     );
+  //   } else if (index == 1) {
+  //     Navigator.pushReplacement(
+  //       context,
+  //       MaterialPageRoute(builder: (context) => ExplorePage()),
+  //     );
+  //   } else {
+  //     setState(() {
+  //       selectedBottomIndex = index;
+  //     });
+  //   }
+  // }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
