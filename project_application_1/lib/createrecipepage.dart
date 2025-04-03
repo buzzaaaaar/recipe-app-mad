@@ -293,98 +293,114 @@ class CreateRecipePageState extends State<CreateRecipePage> {
                 }).toList(),
           ),
 
-        // Add ingredient controls
-        Row(
-          children: [
-            Expanded(
-              flex: 3,
-              child: DropdownButtonFormField<Map<String, dynamic>>(
-                value: _currentIngredient,
-                items:
-                    _allIngredients.map<DropdownMenuItem<Map<String, dynamic>>>(
-                      (ingredient) {
-                        return DropdownMenuItem<Map<String, dynamic>>(
-                          value: ingredient,
-                          child: Text(
-                            '${ingredient['name']} (${ingredient['category']})',
-                          ),
-                        );
-                      },
-                    ).toList(),
-                onChanged: (Map<String, dynamic>? value) {
-                  setState(() {
-                    _currentIngredient = value;
-                    if (value != null &&
-                        value['unitTypes'] is List &&
-                        (value['unitTypes'] as List).isNotEmpty) {
-                      _currentUnit =
-                          (value['unitTypes'] as List<dynamic>).first
-                              .toString();
-                    } else {
-                      _currentUnit = null;
-                    }
-                  });
-                },
-                decoration: InputDecoration(
-                  labelText: 'Ingredient',
-                  border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(8),
-                    borderSide: BorderSide(color: const Color(0xFFFFDB4F)),
+        // Add ingredient controls - Make sure this is wrapped properly
+        SingleChildScrollView(
+          scrollDirection: Axis.horizontal,
+          child: Padding(
+            padding: const EdgeInsets.symmetric(vertical: 8.0),
+            child: Row(
+              children: [
+                // Ingredient dropdown
+                Container(
+                  width: 150, // Reduced width
+                  child: DropdownButtonFormField<Map<String, dynamic>>(
+                    value: _currentIngredient,
+                    items:
+                        _allIngredients
+                            .map<DropdownMenuItem<Map<String, dynamic>>>((
+                              ingredient,
+                            ) {
+                              return DropdownMenuItem<Map<String, dynamic>>(
+                                value: ingredient,
+                                child: Text(
+                                  '${ingredient['name']}',
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                              );
+                            })
+                            .toList(),
+                    onChanged: (Map<String, dynamic>? value) {
+                      setState(() {
+                        _currentIngredient = value;
+                        if (value != null &&
+                            value['unitTypes'] is List &&
+                            (value['unitTypes'] as List).isNotEmpty) {
+                          _currentUnit =
+                              (value['unitTypes'] as List<dynamic>).first
+                                  .toString();
+                        } else {
+                          _currentUnit = null;
+                        }
+                      });
+                    },
+                    decoration: InputDecoration(
+                      labelText: 'Ingredient',
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(8),
+                        borderSide: BorderSide(color: const Color(0xFFFFDB4F)),
+                      ),
+                    ),
+                    isExpanded: true, // This helps with overflow
                   ),
                 ),
-              ),
-            ),
 
-            const SizedBox(width: 8),
-            // Amount field (previously incorrectly a Unit dropdown)
-            Expanded(
-              flex: 2,
-              child: TextFormField(
-                keyboardType: TextInputType.number,
-                decoration: InputDecoration(
-                  labelText: 'Amount',
-                  border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(8),
-                    borderSide: BorderSide(color: const Color(0xFFFFDB4F)),
+                const SizedBox(width: 8),
+
+                // Amount field
+                Container(
+                  width: 80, // Reduced width
+                  child: TextFormField(
+                    keyboardType: TextInputType.number,
+                    decoration: InputDecoration(
+                      labelText: 'Amount',
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(8),
+                        borderSide: BorderSide(color: const Color(0xFFFFDB4F)),
+                      ),
+                    ),
+                    onChanged: (value) {
+                      setState(() {
+                        _currentAmount = double.tryParse(value) ?? 0;
+                      });
+                    },
                   ),
                 ),
-                onChanged: (value) {
-                  setState(() {
-                    _currentAmount = double.tryParse(value) ?? 0;
-                  });
-                },
-              ),
-            ),
-            const SizedBox(width: 8),
-            // Unit dropdown (correct)
-            Expanded(
-              flex: 2,
-              child: DropdownButtonFormField<String>(
-                value: _currentUnit,
-                items:
-                    (_currentIngredient?['unitTypes'] as List<dynamic>? ?? [])
-                        .map<DropdownMenuItem<String>>((unit) {
-                          return DropdownMenuItem<String>(
-                            value: unit as String,
-                            child: Text(unit),
-                          );
-                        })
-                        .toList(),
-                onChanged: (String? value) {
-                  setState(() {
-                    _currentUnit = value;
-                  });
-                },
-                decoration: InputDecoration(
-                  labelText: 'Unit',
-                  border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(8),
-                    borderSide: BorderSide(color: const Color(0xFFFFDB4F)),
+
+                const SizedBox(width: 8),
+
+                // Unit dropdown
+                Container(
+                  width: 80, // Reduced width
+                  child: DropdownButtonFormField<String>(
+                    value: _currentUnit,
+                    items:
+                        (_currentIngredient?['unitTypes'] as List<dynamic>? ??
+                                [])
+                            .map<DropdownMenuItem<String>>((unit) {
+                              return DropdownMenuItem<String>(
+                                value: unit as String,
+                                child: Text(unit),
+                              );
+                            })
+                            .toList(),
+                    onChanged: (String? value) {
+                      setState(() {
+                        _currentUnit = value;
+                      });
+                    },
+                    decoration: InputDecoration(
+                      labelText: 'Unit',
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(8),
+                        borderSide: BorderSide(color: const Color(0xFFFFDB4F)),
+                      ),
+                    ),
+                    isExpanded: true, // This helps with overflow
                   ),
                 ),
-              ),
+              ],
             ),
-          ],
+          ),
         ),
         const SizedBox(height: 8),
         ElevatedButton(
@@ -444,7 +460,7 @@ class CreateRecipePageState extends State<CreateRecipePage> {
               234,
               113,
               15,
-            ).withValues(alpha: 0.2), // Fixed deprecated withOpacity
+            ).withOpacity(0.2), // Fixed: Changed withValues to withOpacity
           ),
           Expanded(
             child: SingleChildScrollView(
@@ -517,15 +533,10 @@ class CreateRecipePageState extends State<CreateRecipePage> {
                           },
                           items:
                               <String>[
-                                'Appetizers',
-                                'Beverages',
                                 'Breakfast',
                                 'Desserts',
                                 'Lunch & Dinner',
-                                'Salads',
-                                'Seafood',
                                 'Snacks',
-                                'Soups',
                                 'Vegetarian',
                               ].map((String value) {
                                 return DropdownMenuItem<String>(

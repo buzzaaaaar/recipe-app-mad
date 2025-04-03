@@ -1,7 +1,13 @@
 import 'package:flutter/material.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import '../Components/recipeCard2.dart';
 import '../screens/home_page.dart';
 import '../screens/explore_page.dart';
+import '../models/recipe_model.dart';
+import '../recipepage.dart';
+import '../editprofilepage.dart';
+import '../createrecipepage.dart';
 
 class ProfilePage extends StatefulWidget {
   @override
@@ -11,8 +17,98 @@ class ProfilePage extends StatefulWidget {
 class _ProfilePageState extends State<ProfilePage> {
   String selectedOption = "";
   bool isCreatedSelected = true;
-
   int _selectedIndex = 2;
+  bool isTappedLeft = false;
+  bool isTappedRight = false;
+  User? currentUser;
+  Map<String, dynamic>? userData;
+  bool isLoading = true;
+
+  // For recipes
+  List<Recipe> createdRecipes = [];
+  List<Recipe> savedRecipes = [];
+  bool isLoadingRecipes = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _fetchCurrentUser();
+  }
+
+  Future<void> _fetchCurrentUser() async {
+    try {
+      currentUser = FirebaseAuth.instance.currentUser;
+      if (currentUser != null) {
+        final userDoc =
+            await FirebaseFirestore.instance
+                .collection('users')
+                .doc(currentUser!.uid)
+                .get();
+
+        if (userDoc.exists) {
+          setState(() {
+            userData = userDoc.data();
+          });
+          await _fetchUserRecipes();
+        }
+      }
+      setState(() {
+        isLoading = false;
+      });
+    } catch (e) {
+      print('Error fetching user data: $e');
+      setState(() {
+        isLoading = false;
+      });
+    }
+  }
+
+  Future<void> _fetchUserRecipes() async {
+    if (currentUser == null) return;
+
+    setState(() {
+      isLoadingRecipes = true;
+    });
+
+    try {
+      final createdQuery =
+          await FirebaseFirestore.instance
+              .collection('recipes')
+              .where('userId', isEqualTo: currentUser!.uid)
+              .get();
+
+      final created =
+          createdQuery.docs
+              .map((doc) => Recipe.fromMap(doc.data(), doc.id))
+              .toList();
+
+      final savedIds = userData?['savedRecipes'] as List<dynamic>? ?? [];
+      final saved = <Recipe>[];
+
+      if (savedIds.isNotEmpty) {
+        final savedQuery =
+            await FirebaseFirestore.instance
+                .collection('recipes')
+                .where(FieldPath.documentId, whereIn: savedIds)
+                .get();
+
+        saved.addAll(
+          savedQuery.docs.map((doc) => Recipe.fromMap(doc.data(), doc.id)),
+        );
+      }
+
+      setState(() {
+        createdRecipes = created;
+        savedRecipes = saved;
+        isLoadingRecipes = false;
+      });
+    } catch (e) {
+      print('Error fetching recipes: $e');
+      setState(() {
+        isLoadingRecipes = false;
+      });
+    }
+  }
 
   //popup for followers and following
   void _showPopup(String title) {
@@ -47,11 +143,15 @@ class _ProfilePageState extends State<ProfilePage> {
                   ),
                 ),
                 SizedBox(height: 10),
-
-                // List of followers
-                ListTile(leading: CircleAvatar(), title: Text("Follower 1")),
-                ListTile(leading: CircleAvatar(), title: Text("Follower 2")),
-                // Add more followers dynamically
+                // List of followers/following would go here
+                ListTile(
+                  leading: CircleAvatar(
+                    backgroundImage: NetworkImage(
+                      userData?['profileImage'] ?? '',
+                    ),
+                  ),
+                  title: Text(userData?['username'] ?? 'User'),
+                ),
               ],
             ),
           ),
@@ -79,8 +179,9 @@ class _ProfilePageState extends State<ProfilePage> {
                       : Color(0xff000000),
             ),
           ),
-          onTap: () {
-            setState(() => selectedOption = "Log out");
+          onTap: () async {
+            await FirebaseAuth.instance.signOut();
+            // Navigate to login page or handle logout
           },
         ),
         PopupMenuItem(
@@ -97,34 +198,23 @@ class _ProfilePageState extends State<ProfilePage> {
             ),
           ),
           onTap: () {
-            setState(() => selectedOption = "Edit profile");
-          },
-        ),
-        PopupMenuItem(
-          child: Text(
-            "Delete account",
-            style: TextStyle(
-              fontFamily: 'AlbertSans',
-              fontWeight: FontWeight.w500,
-              fontSize: 20,
-              color:
-                  selectedOption == "Delete account"
-                      ? Color(0xffff8210)
-                      : Color(0xff000000),
-            ),
-          ),
-          onTap: () {
-            setState(() => selectedOption = "Delete account");
+            Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder:
+                    (context) => EditProfilePage(
+                      userData: userData ?? {},
+                      onProfileUpdated:
+                          _fetchCurrentUser, // This will refresh the profile data
+                    ),
+              ),
+            );
           },
         ),
       ],
     );
   }
 
-  bool isTappedLeft = false;
-  bool isTappedRight = false;
-
-  // Function to handle page navigation
   void _onItemTapped(int index) {
     setState(() {
       _selectedIndex = index;
@@ -140,16 +230,34 @@ class _ProfilePageState extends State<ProfilePage> {
         context,
         MaterialPageRoute(builder: (context) => ExplorePage()),
       );
-    } else if (index == 2) {
-      Navigator.pushReplacement(
-        context,
-        MaterialPageRoute(builder: (context) => ProfilePage()),
-      );
     }
   }
 
   @override
   Widget build(BuildContext context) {
+    if (isLoading) {
+      return Scaffold(body: Center(child: CircularProgressIndicator()));
+    }
+
+    if (currentUser == null) {
+      return Scaffold(
+        body: Center(
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Text("Please sign in to view your profile"),
+              ElevatedButton(
+                onPressed: () {
+                  // Navigate to login page
+                },
+                child: Text("Sign In"),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+
     return Scaffold(
       appBar: AppBar(
         centerTitle: true,
@@ -190,17 +298,28 @@ class _ProfilePageState extends State<ProfilePage> {
                 children: [
                   CircleAvatar(
                     radius: 70,
-                    backgroundImage: AssetImage('images/ProfileImage.png'),
+                    backgroundImage:
+                        userData?['profileImage'] != null
+                            ? NetworkImage(userData!['profileImage'])
+                            : AssetImage('images/ProfileImage.png')
+                                as ImageProvider,
                     backgroundColor: Colors.transparent,
                   ),
                   SizedBox(height: 10),
                   Text(
-                    "JohnDoe123",
+                    userData?['username'] ??
+                        currentUser?.email?.split('@')[0] ??
+                        'User',
                     style: TextStyle(
                       fontSize: 32,
                       fontFamily: 'AlbertSans',
                       fontWeight: FontWeight.w700,
                     ),
+                  ),
+                  SizedBox(height: 5),
+                  Text(
+                    currentUser?.email ?? '',
+                    style: TextStyle(fontSize: 16, color: Colors.grey),
                   ),
                   SizedBox(height: 5),
                   Row(
@@ -215,7 +334,7 @@ class _ProfilePageState extends State<ProfilePage> {
                           });
                         },
                         child: Text(
-                          "10 followers",
+                          "${userData?['followers']?.length ?? 0} followers",
                           style: TextStyle(
                             color: Color(0xff0eddd2),
                             fontWeight: FontWeight.w600,
@@ -239,7 +358,7 @@ class _ProfilePageState extends State<ProfilePage> {
                           });
                         },
                         child: Text(
-                          "20 following",
+                          "${userData?['following']?.length ?? 0} following",
                           style: TextStyle(
                             color: Color(0xff0eddd2),
                             fontWeight: FontWeight.w600,
@@ -313,103 +432,15 @@ class _ProfilePageState extends State<ProfilePage> {
             // Content for CREATED or SAVED state
             Expanded(
               child:
-                  isCreatedSelected
-                      ? Column(
-                        children: [
-                          Row(
-                            children: [
-                              Expanded(
-                                child: Container(
-                                  height: 220.0,
-                                  decoration: BoxDecoration(
-                                    color: Colors.white,
-                                    borderRadius: BorderRadius.circular(20.0),
-                                    border: Border.all(
-                                      color: Colors.grey,
-                                      width: 0.5,
-                                    ),
-                                  ),
-                                  child: Align(
-                                    alignment: Alignment.center,
-                                    child: Icon(
-                                      Icons.add,
-                                      size: 70.0,
-                                      color: Color(0xffffdb4f),
-                                    ),
-                                  ),
-                                ),
-                              ),
-                              SizedBox(width: 5),
-                              Expanded(
-                                child: Container(
-                                  decoration: BoxDecoration(
-                                    color: Color(0xffffffff),
-                                    borderRadius: BorderRadius.circular(20.0),
-                                  ),
-                                  child: Align(
-                                    alignment: Alignment.center,
-                                    child: RecipeCard2(
-                                      image: 'images/ChocolateChipCookies.jpg',
-                                      title: "Chocolate Chip Cookies",
-                                      rating: "3.7",
-                                      reviews: "2",
-                                    ),
-                                  ),
-                                ),
-                              ),
-                            ],
-                          ),
-                        ],
-                      )
-                      : Column(
-                        children: [
-                          Row(
-                            children: [
-                              Expanded(
-                                child: Container(
-                                  decoration: BoxDecoration(
-                                    color: Color(0xffffffff),
-                                    borderRadius: BorderRadius.circular(20.0),
-                                  ),
-                                  child: Align(
-                                    alignment: Alignment.center,
-                                    child: RecipeCard2(
-                                      image: 'images/FluffyPancakes.jpg',
-                                      title: "Fluffy Pancakes",
-                                      rating: "4.0",
-                                      reviews: "2",
-                                    ),
-                                  ),
-                                ),
-                              ),
-                              SizedBox(width: 2),
-                              Expanded(
-                                child: Container(
-                                  decoration: BoxDecoration(
-                                    color: Color(0xffffffff),
-                                    borderRadius: BorderRadius.circular(20.0),
-                                  ),
-                                  child: Align(
-                                    alignment: Alignment.center,
-                                    child: RecipeCard2(
-                                      image: 'images/ChocolateChipCookies.jpg',
-                                      title: "Chocolate Chip Cookies",
-                                      rating: "3.7",
-                                      reviews: "2",
-                                    ),
-                                  ),
-                                ),
-                              ),
-                            ],
-                          ),
-                        ],
-                      ),
+                  isLoadingRecipes
+                      ? Center(child: CircularProgressIndicator())
+                      : isCreatedSelected
+                      ? _buildCreatedRecipes()
+                      : _buildSavedRecipes(),
             ),
           ],
         ),
       ),
-
-      // Bottom Navigation Bar
       bottomNavigationBar: Container(
         decoration: BoxDecoration(
           borderRadius: BorderRadius.only(
@@ -463,8 +494,147 @@ class _ProfilePageState extends State<ProfilePage> {
           ),
         ),
       ),
-
       backgroundColor: Colors.white,
+    );
+  }
+
+  Widget _buildCreatedRecipes() {
+    if (createdRecipes.isEmpty) {
+      return Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(Icons.restaurant_menu, size: 50, color: Colors.grey),
+            SizedBox(height: 16),
+            Text(
+              "No recipes created yet",
+              style: TextStyle(color: Colors.grey, fontSize: 18),
+            ),
+            SizedBox(height: 16),
+            ElevatedButton(
+              onPressed: () {
+                // Navigate to create recipe page
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (context) => CreateRecipePage()),
+                ).then((_) {
+                  // Refresh the recipes when returning from CreateRecipePage
+                  _fetchUserRecipes();
+                });
+              },
+              child: Text("Create Your First Recipe"),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Color(0xFFFFDB4F),
+              ),
+            ),
+          ],
+        ),
+      );
+    }
+
+    return GridView.builder(
+      padding: EdgeInsets.all(8),
+      gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+        crossAxisCount: 2,
+        childAspectRatio: 0.8,
+        crossAxisSpacing: 8,
+        mainAxisSpacing: 8,
+      ),
+      itemCount: createdRecipes.length + 1, // +1 for the "add" button
+      itemBuilder: (context, index) {
+        if (index == 0) {
+          return GestureDetector(
+            onTap: () {
+              // Navigate to create recipe page
+              Navigator.push(
+                context,
+                MaterialPageRoute(builder: (context) => CreateRecipePage()),
+              ).then((_) {
+                // Refresh the recipes when returning from CreateRecipePage
+                _fetchUserRecipes();
+              });
+            },
+            child: Container(
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: Colors.grey),
+              ),
+              child: Center(
+                child: Icon(Icons.add, size: 50, color: Color(0xFFFFDB4F)),
+              ),
+            ),
+          );
+        }
+
+        final recipe = createdRecipes[index - 1];
+        return RecipeCard2(
+          image: recipe.imageUrl ?? 'images/placeholder_recipe.jpg',
+          title: recipe.name,
+          rating: "4.5",
+          reviews: "10",
+          onTap: () {
+            Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (context) => RecipePage(recipe: recipe),
+              ),
+            );
+          },
+        );
+      },
+    );
+  }
+
+  Widget _buildSavedRecipes() {
+    if (savedRecipes.isEmpty) {
+      return Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(Icons.bookmark_border, size: 50, color: Colors.grey),
+            SizedBox(height: 16),
+            Text(
+              "No saved recipes yet",
+              style: TextStyle(color: Colors.grey, fontSize: 18),
+            ),
+            SizedBox(height: 16),
+            Text(
+              "Save recipes you like to find them here later",
+              textAlign: TextAlign.center,
+              style: TextStyle(color: Colors.grey),
+            ),
+          ],
+        ),
+      );
+    }
+
+    return GridView.builder(
+      padding: EdgeInsets.all(8),
+      gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+        crossAxisCount: 2,
+        childAspectRatio: 0.8,
+        crossAxisSpacing: 8,
+        mainAxisSpacing: 8,
+      ),
+      itemCount: savedRecipes.length,
+      itemBuilder: (context, index) {
+        final recipe = savedRecipes[index];
+        return RecipeCard2(
+          image: recipe.imageUrl ?? 'images/placeholder_recipe.jpg',
+          title: recipe.name,
+          rating: "4.5", // You might want to add rating to your Recipe model
+          reviews: "10", // And reviews count
+          onTap: () {
+            Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (context) => RecipePage(recipe: recipe),
+              ),
+            );
+          },
+        );
+      },
     );
   }
 }

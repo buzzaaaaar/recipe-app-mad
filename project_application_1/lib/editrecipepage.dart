@@ -1,46 +1,402 @@
 import 'package:flutter/material.dart';
+import 'package:firebase_storage/firebase_storage.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:image_picker/image_picker.dart';
+import 'dart:io';
+import '../models/recipe_model.dart';
 
-void main() {
-  runApp(const MyApp());
-}
+class EditRecipePage extends StatefulWidget {
+  final Recipe recipe;
 
-class MyApp extends StatelessWidget {
-  const MyApp({super.key});
+  const EditRecipePage({super.key, required this.recipe});
 
   @override
-  Widget build(BuildContext context) {
-    return MaterialApp(
-      debugShowCheckedModeBanner: false,
-      home: RecipePage(),
+  EditRecipePageState createState() => EditRecipePageState();
+}
+
+class EditRecipePageState extends State<EditRecipePage> {
+  int selectedBottomIndex = 0;
+  late Recipe _editedRecipe;
+  File? _imageFile;
+  File? _videoFile;
+  bool _isLoading = false;
+  String _errorMessage = '';
+
+  // Ingredients management
+  final List<Map<String, dynamic>> _allIngredients = [];
+  final List<Map<String, dynamic>> _ingredientCategories = [];
+  final List<Map<String, dynamic>> _selectedIngredients = [];
+  Map<String, dynamic>? _currentIngredient;
+  double _currentAmount = 0;
+  String? _currentUnit;
+
+  final _formKey = GlobalKey<FormState>();
+  final TextEditingController _directionsController = TextEditingController();
+  final TextEditingController _nutritionalController = TextEditingController();
+
+  @override
+  void initState() {
+    super.initState();
+    _editedRecipe = widget.recipe;
+    _initializeSelectedIngredients();
+    _loadIngredients();
+    _initializeControllers();
+  }
+
+  void _initializeSelectedIngredients() {
+    _selectedIngredients.clear();
+    for (var ing in _editedRecipe.ingredients) {
+      // Find the full ingredient details from _allIngredients
+      var fullIngredient = _allIngredients.firstWhere(
+        (i) => i['id'] == ing.ingredientId,
+        orElse:
+            () => {
+              'id': ing.ingredientId,
+              'name': ing.name,
+              'unitTypes': [ing.unit], // Default unit types
+              'category': 'Unknown',
+            },
+      );
+
+      _selectedIngredients.add({
+        'id': ing.ingredientId,
+        'name': fullIngredient['name'] ?? ing.name,
+        'amount': ing.amount,
+        'unit': ing.unit,
+        'unitTypes': fullIngredient['unitTypes'],
+      });
+    }
+  }
+
+  void _initializeControllers() {
+    _directionsController.text = _editedRecipe.directions.join('\n');
+    _nutritionalController.text = _editedRecipe.nutritionalInfo.entries
+        .map((entry) => '${entry.key}: ${entry.value}')
+        .join('\n');
+  }
+
+  Future<void> _loadIngredients() async {
+    try {
+      final categoriesSnapshot =
+          await FirebaseFirestore.instance
+              .collection('ingredient_categories')
+              .get();
+
+      final categories =
+          categoriesSnapshot.docs.map((doc) {
+            return {'id': doc.id, ...doc.data()};
+          }).toList();
+
+      setState(() {
+        _ingredientCategories.clear();
+        _ingredientCategories.addAll(categories);
+
+        _allIngredients.clear();
+        for (var category in _ingredientCategories) {
+          final categoryIngredients = category['ingredients'] as List<dynamic>;
+          for (var ingredient in categoryIngredients) {
+            _allIngredients.add({
+              'id': '${category['id']}_${ingredient['name']}',
+              'name': ingredient['name'],
+              'unitTypes': ingredient['unitTypes'],
+              'category': category['name'],
+            });
+          }
+        }
+        _initializeSelectedIngredients();
+      });
+    } catch (e) {
+      setState(() {
+        _errorMessage = 'Failed to load ingredients: $e';
+      });
+      print('Error loading ingredients: $e');
+    }
+  }
+
+  Future<void> _pickImage() async {
+    final picker = ImagePicker();
+    final pickedFile = await picker.pickImage(source: ImageSource.gallery);
+
+    if (pickedFile != null) {
+      setState(() {
+        _imageFile = File(pickedFile.path);
+      });
+    }
+  }
+
+  Future<void> _pickVideo() async {
+    final picker = ImagePicker();
+    final pickedFile = await picker.pickVideo(source: ImageSource.gallery);
+
+    if (pickedFile != null) {
+      setState(() {
+        _videoFile = File(pickedFile.path);
+      });
+    }
+  }
+
+  Future<String?> _uploadFile(File file, String path) async {
+    try {
+      final ref = FirebaseStorage.instance.ref().child(path);
+      await ref.putFile(file);
+      return await ref.getDownloadURL();
+    } catch (e) {
+      print('Error uploading file: $e');
+      return null;
+    }
+  }
+
+  Future<void> _saveRecipe() async {
+    if (!_formKey.currentState!.validate() || _selectedIngredients.isEmpty) {
+      setState(() {
+        _errorMessage =
+            _selectedIngredients.isEmpty
+                ? 'Please add at least one ingredient'
+                : 'Please fill in all required fields';
+      });
+      return;
+    }
+
+    setState(() => _isLoading = true);
+
+    try {
+      // Upload new image if selected
+      if (_imageFile != null) {
+        final imageUrl = await _uploadFile(
+          _imageFile!,
+          'recipes/${_editedRecipe.id}/image.jpg',
+        );
+        if (imageUrl != null) _editedRecipe.imageUrl = imageUrl;
+      }
+
+      // Upload new video if selected
+      if (_videoFile != null) {
+        final videoUrl = await _uploadFile(
+          _videoFile!,
+          'recipes/${_editedRecipe.id}/video.mp4',
+        );
+        if (videoUrl != null) _editedRecipe.videoUrl = videoUrl;
+      }
+
+      final updatedRecipe = Recipe(
+        id: _editedRecipe.id,
+        name: _editedRecipe.name,
+        category: _editedRecipe.category,
+        prepTime: _editedRecipe.prepTime,
+        cookTime: _editedRecipe.cookTime,
+        servings: _editedRecipe.servings,
+        ingredients:
+            _selectedIngredients
+                .map(
+                  (ingredient) => RecipeIngredient(
+                    ingredientId: ingredient['id'],
+                    name: ingredient['name'],
+                    amount: ingredient['amount'],
+                    unit: ingredient['unit'],
+                  ),
+                )
+                .toList(),
+        directions: _directionsController.text.split('\n'),
+        nutritionalInfo: _parseNutritionalInfo(_nutritionalController.text),
+        imageUrl: _editedRecipe.imageUrl,
+        videoUrl: _editedRecipe.videoUrl,
+        userId: _editedRecipe.userId,
+        author: _editedRecipe.author,
+        createdAt: _editedRecipe.createdAt,
+      );
+
+      // Update recipe
+      await FirebaseFirestore.instance
+          .collection('recipes')
+          .doc(_editedRecipe.id)
+          .update({
+            'name': _editedRecipe.name,
+            'category': _editedRecipe.category,
+            'prepTime': _editedRecipe.prepTime,
+            'cookTime': _editedRecipe.cookTime,
+            'servings': _editedRecipe.servings,
+            'ingredients':
+                _selectedIngredients.map((ingredient) {
+                  return {
+                    'ingredientId': ingredient['id'],
+                    'name': ingredient['name'],
+                    'amount': ingredient['amount'],
+                    'unit': ingredient['unit'],
+                  };
+                }).toList(),
+            'directions': _directionsController.text.split('\n'),
+            'nutritionalInfo': _parseNutritionalInfo(
+              _nutritionalController.text,
+            ),
+            'imageUrl': _editedRecipe.imageUrl,
+            'videoUrl': _editedRecipe.videoUrl,
+            'updatedAt': Timestamp.now(),
+          });
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Recipe updated successfully')),
+      );
+
+      Navigator.of(context).pop(updatedRecipe);
+    } catch (e) {
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Error updating recipe: $e')));
+    } finally {
+      setState(() => _isLoading = false);
+    }
+  }
+
+  Map<String, dynamic> _parseNutritionalInfo(String text) {
+    final lines = text.split('\n');
+    final result = <String, dynamic>{};
+    for (var line in lines) {
+      final parts = line.split(':');
+      if (parts.length == 2) {
+        result[parts[0].trim()] = parts[1].trim();
+      }
+    }
+    return result;
+  }
+
+  Widget _buildIngredientsSection() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        _buildSectionHeader("INGREDIENTS"),
+        const SizedBox(height: 8),
+
+        // Selected ingredients list
+        if (_selectedIngredients.isNotEmpty)
+          Column(
+            children:
+                _selectedIngredients.map((ingredient) {
+                  return ListTile(
+                    title: Text(ingredient['name'] ?? 'Unknown Ingredient'),
+                    subtitle: Text(
+                      '${ingredient['amount']} ${ingredient['unit']}',
+                    ),
+                    trailing: IconButton(
+                      icon: const Icon(Icons.delete, color: Colors.red),
+                      onPressed: () {
+                        setState(() {
+                          _selectedIngredients.remove(ingredient);
+                        });
+                      },
+                    ),
+                  );
+                }).toList(),
+          ),
+
+        // Add ingredient controls
+        Row(
+          children: [
+            // Smaller ingredient dropdown
+            Expanded(
+              flex: 2, // Reduced from flex: 3
+              child: DropdownButtonFormField<Map<String, dynamic>>(
+                value: _currentIngredient,
+                items:
+                    _allIngredients.map<DropdownMenuItem<Map<String, dynamic>>>(
+                      (ingredient) {
+                        return DropdownMenuItem<Map<String, dynamic>>(
+                          value: ingredient,
+                          child: Text(
+                            '${ingredient['name']} (${ingredient['category']})',
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        );
+                      },
+                    ).toList(),
+                onChanged: (Map<String, dynamic>? value) {
+                  setState(() {
+                    _currentIngredient = value;
+                    if (value != null &&
+                        value['unitTypes'] is List &&
+                        (value['unitTypes'] as List).isNotEmpty) {
+                      _currentUnit =
+                          (value['unitTypes'] as List<dynamic>).first
+                              .toString();
+                    } else {
+                      _currentUnit = null;
+                    }
+                  });
+                },
+                decoration: _inputDecoration(labelText: 'Ingredient'),
+                isExpanded: true, // Ensures text doesn't overflow
+              ),
+            ),
+
+            const SizedBox(width: 8),
+            // Amount field (same size)
+            SizedBox(
+              width: 80, // Fixed width
+              child: TextFormField(
+                keyboardType: TextInputType.number,
+                decoration: _inputDecoration(labelText: 'Amount'),
+                onChanged: (value) {
+                  setState(() {
+                    _currentAmount = double.tryParse(value) ?? 0;
+                  });
+                },
+              ),
+            ),
+            const SizedBox(width: 8),
+            // Unit dropdown (same size)
+            SizedBox(
+              width: 80, // Fixed width
+              child: DropdownButtonFormField<String>(
+                value: _currentUnit,
+                items:
+                    (_currentIngredient?['unitTypes'] as List<dynamic>? ?? [])
+                        .map<DropdownMenuItem<String>>((unit) {
+                          return DropdownMenuItem<String>(
+                            value: unit as String,
+                            child: Text(unit, overflow: TextOverflow.ellipsis),
+                          );
+                        })
+                        .toList(),
+                onChanged: (String? value) {
+                  setState(() {
+                    _currentUnit = value;
+                  });
+                },
+                decoration: _inputDecoration(labelText: 'Unit'),
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 8),
+        ElevatedButton(
+          onPressed: () {
+            if (_currentIngredient != null &&
+                _currentUnit != null &&
+                _currentAmount > 0) {
+              setState(() {
+                _selectedIngredients.add({
+                  'id': _currentIngredient!['id'],
+                  'name': _currentIngredient!['name'],
+                  'amount': _currentAmount,
+                  'unit': _currentUnit!,
+                });
+                _currentIngredient = null;
+                _currentAmount = 0;
+                _currentUnit = null;
+              });
+            }
+          },
+          style: ElevatedButton.styleFrom(
+            backgroundColor: const Color(0xFFFF8210),
+          ),
+          child: const Text(
+            'Add Ingredient',
+            style: TextStyle(color: Colors.white),
+          ),
+        ),
+        const SizedBox(height: 16),
+      ],
     );
   }
-}
-
-class RecipePage extends StatefulWidget {
-  const RecipePage({super.key});
-
-  @override
-  RecipePageState createState() => RecipePageState();
-}
-
-class RecipePageState extends State {
-  int selectedBottomIndex = 0;
-  bool _hasVideo = true;
-  String? _imagePath = 'assets/TomatoBasilSoup.jpg';
-  String _selectedCategory = 'Soups';
-  String _recipeName = 'Tomato Basil Soup';
-  String _prepTime = '10 minutes';
-  String _cookTime = '25 minutes';
-  String _totalTime = '35 minutes';
-  String _servings = '4';
-
-  final TextEditingController ingredientsController = TextEditingController(
-      text: "• 1 tbsp olive oil\n• 1 small onion, chopped\n• 2 cloves garlic, minced\n• 4 cups diced tomatoes (fresh or canned)\n• 2 cups vegetable broth\n• ½ tsp salt\n• ¼ tsp black pepper\n• ½ cup heavy cream (optional)\n• ¼ cup fresh basil, chopped");
-  final TextEditingController directionsController = TextEditingController(
-      text:
-          "1. Heat olive oil in a large pot over medium heat. Add onions and sauté for 3 minutes.\n2. Add garlic and cook for 1 minute.\n3. Stir in diced tomatoes, vegetable broth, salt, and pepper. Bring to a boil.\n4. Reduce heat and simmer for 15 minutes.\n5. Blend the soup until smooth using an immersion blender or countertop blender.\n6. Stir in heavy cream (if using) and fresh basil. Serve hot.");
-  final TextEditingController nutritionalController = TextEditingController(
-      text: "Calories (kcal): 180\nProtein (g): 3\nCarbs (g): 20\nFat (g): 9");
 
   @override
   Widget build(BuildContext context) {
@@ -58,400 +414,399 @@ class RecipePageState extends State {
             ),
           ),
         ),
-      ),
-      body: Column(
-        children: [
-          Container(
-            height: 2,
-            // ignore: deprecated_member_use
-            color: const Color.fromARGB(255, 234, 113, 15).withOpacity(0.2),
-          ),
-          Expanded(
-            child: SingleChildScrollView(
+        actions: [
+          if (_isLoading)
+            const Padding(
+              padding: EdgeInsets.only(right: 16),
               child: Center(
-                child: Container(
-                  width: MediaQuery.of(context).size.width * 0.9,
-                  margin: const EdgeInsets.only(top: 32, bottom: 16),
-                  decoration: BoxDecoration(
-                    color: Colors.white,
-                    borderRadius: BorderRadius.circular(20),
-                  ),
-                  padding: const EdgeInsets.all(16),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        "IMAGE",
-                        style: TextStyle(
-                          fontSize: 18,
-                          fontWeight: FontWeight.bold,
-                          color: const Color(0xFFFFDB4F),
-                        ),
-                      ),
-                      const SizedBox(height: 8),
-                      GestureDetector(
-                        onTap: () {
-                          if (_imagePath != null) {
-                            _showRemoveImageDialog();
-                          } else {
-                            debugPrint("Upload image here");
-                          }
-                        },
-                        child: Container(
-                          width: double.infinity,
-                          height: 200,
-                          decoration: BoxDecoration(
-                            color: Colors.grey[200],
-                            borderRadius: BorderRadius.circular(8),
-                          ),
-                          child: _imagePath != null
-                              ? Image.asset(_imagePath!, fit: BoxFit.cover)
-                              : Center(
-                                  child: Text(
-                                    "Upload a file here. We recommend using high quality files less than 20 MB.",
-                                    style: TextStyle(color: Color(0xFF9B9B9B)),
-                                    textAlign: TextAlign.center,
-                                  ),
-                                ),
-                        ),
-                      ),
-                      const SizedBox(height: 16),
-                      Text(
-                        "CATEGORY",
-                        style: TextStyle(
-                          fontSize: 18,
-                          fontWeight: FontWeight.bold,
-                          color: const Color(0xFFFFDB4F),
-                        ),
-                      ),
-                      const SizedBox(height: 8),
-                      DropdownButtonFormField<String>(
-                        value: _selectedCategory,
-                        items: <String>[
-                          'Appetizers',
-                          'Beverages',
-                          'Breakfast',
-                          'Desserts',
-                          'Lunch & Dinner',
-                          'Salads',
-                          'Seafood',
-                          'Snacks',
-                          'Soups',
-                          'Vegetarian'
-                        ].map((String value) {
-                          return DropdownMenuItem<String>(
-                            value: value,
-                            child: Text(value),
-                          );
-                        }).toList(),
-                        onChanged: (String? newValue) {
-                          setState(() {
-                            _selectedCategory = newValue!;
-                          });
-                        },
-                        decoration: InputDecoration(
-                          border: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(8),
-                            borderSide:
-                                BorderSide(color: const Color(0xFFFFDB4F)),
-                          ),
-                          focusedBorder: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(8),
-                            borderSide:
-                                BorderSide(color: const Color(0xFFFFDB4F)),
-                          ),
-                          enabledBorder: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(8),
-                            borderSide:
-                                BorderSide(color: const Color(0xFFFFDB4F)),
+                child: SizedBox(
+                  width: 20,
+                  height: 20,
+                  child: CircularProgressIndicator(),
+                ),
+              ),
+            ),
+        ],
+      ),
+      body: Form(
+        key: _formKey,
+        child: Column(
+          children: [
+            Container(
+              height: 2,
+              color: const Color.fromARGB(255, 234, 113, 15).withOpacity(0.2),
+            ),
+            Expanded(
+              child: SingleChildScrollView(
+                child: Center(
+                  child: Container(
+                    width: MediaQuery.of(context).size.width * 0.9,
+                    margin: const EdgeInsets.only(top: 32, bottom: 16),
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      borderRadius: BorderRadius.circular(20),
+                    ),
+                    padding: const EdgeInsets.all(16),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        // Image Section
+                        _buildSectionHeader('IMAGE'),
+                        const SizedBox(height: 8),
+                        GestureDetector(
+                          onTap: _pickImage,
+                          child: Container(
+                            width: double.infinity,
+                            height: 200,
+                            decoration: BoxDecoration(
+                              color: Colors.grey[200],
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                            child:
+                                _imageFile != null
+                                    ? Image.file(_imageFile!, fit: BoxFit.cover)
+                                    : _editedRecipe.imageUrl != null
+                                    ? Image.network(
+                                      _editedRecipe.imageUrl!,
+                                      fit: BoxFit.cover,
+                                      errorBuilder:
+                                          (context, error, stackTrace) =>
+                                              _buildPlaceholder(
+                                                'Tap to add image',
+                                              ),
+                                    )
+                                    : _buildPlaceholder('Tap to add image'),
                           ),
                         ),
-                      ),
-                      const SizedBox(height: 16),
-                      Text(
-                        "NAME",
-                        style: TextStyle(
-                          fontSize: 18,
-                          fontWeight: FontWeight.bold,
-                          color: const Color(0xFFFFDB4F),
+                        if (_imageFile != null ||
+                            _editedRecipe.imageUrl != null)
+                          TextButton(
+                            onPressed: () {
+                              setState(() {
+                                _imageFile = null;
+                                _editedRecipe.imageUrl = null;
+                              });
+                            },
+                            child: const Text(
+                              'Remove Image',
+                              style: TextStyle(color: Colors.red),
+                            ),
+                          ),
+                        const SizedBox(height: 16),
+
+                        // Category Dropdown
+                        _buildSectionHeader('CATEGORY'),
+                        const SizedBox(height: 8),
+                        DropdownButtonFormField<String>(
+                          value: _editedRecipe.category,
+                          items:
+                              const [
+                                'Breakfast',
+                                'Desserts',
+                                'Lunch & Dinner',
+                                'Snacks',
+                                'Vegetarian',
+                              ].map((String value) {
+                                return DropdownMenuItem<String>(
+                                  value: value,
+                                  child: Text(value),
+                                );
+                              }).toList(),
+                          onChanged: (String? newValue) {
+                            setState(() {
+                              _editedRecipe.category = newValue!;
+                            });
+                          },
+                          decoration: _inputDecoration(),
                         ),
-                      ),
-                      const SizedBox(height: 8),
-                      TextFormField(
-                        initialValue: _recipeName,
-                        style: TextStyle(fontWeight: FontWeight.w600),
-                        decoration: InputDecoration(
-                          border: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(8),
-                            borderSide:
-                                BorderSide(color: const Color(0xFFFFDB4F)),
-                          ),
-                          focusedBorder: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(8),
-                            borderSide:
-                                BorderSide(color: const Color(0xFFFFDB4F)),
-                          ),
-                          enabledBorder: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(8),
-                            borderSide:
-                                BorderSide(color: const Color(0xFFFFDB4F)),
-                          ),
+                        const SizedBox(height: 16),
+
+                        // Recipe Name
+                        _buildSectionHeader('NAME'),
+                        const SizedBox(height: 8),
+                        TextFormField(
+                          initialValue: _editedRecipe.name,
+                          style: const TextStyle(fontWeight: FontWeight.w600),
+                          decoration: _inputDecoration(),
+                          validator: (value) {
+                            if (value == null || value.isEmpty) {
+                              return 'Please enter a recipe name';
+                            }
+                            return null;
+                          },
+                          onChanged: (value) {
+                            setState(() {
+                              _editedRecipe.name = value;
+                            });
+                          },
                         ),
-                        onChanged: (value) {
-                          setState(() {
-                            _recipeName = value;
-                          });
-                        },
-                      ),
-                      const SizedBox(height: 16),
-                      Text(
-                        "PREP TIME",
-                        style: TextStyle(
-                          fontSize: 18,
-                          fontWeight: FontWeight.bold,
-                          color: const Color(0xFFFFDB4F),
+                        const SizedBox(height: 16),
+
+                        // Time Fields
+                        _buildTimeFields(),
+                        const SizedBox(height: 16),
+
+                        // Servings
+                        _buildSectionHeader('SERVINGS'),
+                        const SizedBox(height: 8),
+                        TextFormField(
+                          initialValue: _editedRecipe.servings.toString(),
+                          style: const TextStyle(fontWeight: FontWeight.w600),
+                          decoration: _inputDecoration(),
+                          keyboardType: TextInputType.number,
+                          validator: (value) {
+                            if (value == null || value.isEmpty) {
+                              return 'Please enter servings';
+                            }
+                            if (int.tryParse(value) == null) {
+                              return 'Please enter a valid number';
+                            }
+                            return null;
+                          },
+                          onChanged: (value) {
+                            setState(() {
+                              _editedRecipe.servings =
+                                  int.tryParse(value) ?? _editedRecipe.servings;
+                            });
+                          },
                         ),
-                      ),
-                      const SizedBox(height: 8),
-                      TextFormField(
-                        initialValue: _prepTime,
-                        style: TextStyle(fontWeight: FontWeight.w600),
-                        decoration: InputDecoration(
-                          border: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(8),
-                            borderSide:
-                                BorderSide(color: const Color(0xFFFFDB4F)),
-                          ),
-                          focusedBorder: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(8),
-                            borderSide:
-                                BorderSide(color: const Color(0xFFFFDB4F)),
-                          ),
-                          enabledBorder: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(8),
-                            borderSide:
-                                BorderSide(color: const Color(0xFFFFDB4F)),
-                          ),
+                        const SizedBox(height: 16),
+
+                        // Ingredients Section
+                        _buildIngredientsSection(),
+
+                        // Directions
+                        _buildSectionHeader('DIRECTIONS'),
+                        const SizedBox(height: 8),
+                        _buildEditableSection(_directionsController),
+                        const SizedBox(height: 16),
+
+                        // Nutritional Info
+                        _buildSectionHeader(
+                          'NUTRITIONAL INFORMATION (PER SERVING)',
                         ),
-                        onChanged: (value) {
-                          setState(() {
-                            _prepTime = value;
-                          });
-                        },
-                      ),
-                      const SizedBox(height: 16),
-                      Text(
-                        "COOK TIME",
-                        style: TextStyle(
-                          fontSize: 18,
-                          fontWeight: FontWeight.bold,
-                          color: const Color(0xFFFFDB4F),
-                        ),
-                      ),
-                      const SizedBox(height: 8),
-                      TextFormField(
-                        initialValue: _cookTime,
-                        style: TextStyle(fontWeight: FontWeight.w600),
-                        decoration: InputDecoration(
-                          border: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(8),
-                            borderSide:
-                                BorderSide(color: const Color(0xFFFFDB4F)),
-                          ),
-                          focusedBorder: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(8),
-                            borderSide:
-                                BorderSide(color: const Color(0xFFFFDB4F)),
-                          ),
-                          enabledBorder: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(8),
-                            borderSide:
-                                BorderSide(color: const Color(0xFFFFDB4F)),
-                          ),
-                        ),
-                        onChanged: (value) {
-                          setState(() {
-                            _cookTime = value;
-                          });
-                        },
-                      ),
-                      const SizedBox(height: 16),
-                      Text(
-                        "TOTAL TIME",
-                        style: TextStyle(
-                          fontSize: 18,
-                          fontWeight: FontWeight.bold,
-                          color: const Color(0xFFFFDB4F),
-                        ),
-                      ),
-                      const SizedBox(height: 8),
-                      TextFormField(
-                        initialValue: _totalTime,
-                        style: TextStyle(fontWeight: FontWeight.w600),
-                        decoration: InputDecoration(
-                          border: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(8),
-                            borderSide:
-                                BorderSide(color: const Color(0xFFFFDB4F)),
-                          ),
-                          focusedBorder: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(8),
-                            borderSide:
-                                BorderSide(color: const Color(0xFFFFDB4F)),
-                          ),
-                          enabledBorder: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(8),
-                            borderSide:
-                                BorderSide(color: const Color(0xFFFFDB4F)),
-                          ),
-                        ),
-                        onChanged: (value) {
-                          setState(() {
-                            _totalTime = value;
-                          });
-                        },
-                      ),
-                      const SizedBox(height: 16),
-                      Text(
-                        "SERVINGS",
-                        style: TextStyle(
-                          fontSize: 18,
-                          fontWeight: FontWeight.bold,
-                          color: const Color(0xFFFFDB4F),
-                        ),
-                      ),
-                      const SizedBox(height: 8),
-                      TextFormField(
-                        initialValue: _servings,
-                        style: TextStyle(fontWeight: FontWeight.w600),
-                        decoration: InputDecoration(
-                          border: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(8),
-                            borderSide:
-                                BorderSide(color: const Color(0xFFFFDB4F)),
-                          ),
-                          focusedBorder: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(8),
-                            borderSide:
-                                BorderSide(color: const Color(0xFFFFDB4F)),
-                          ),
-                          enabledBorder: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(8),
-                            borderSide:
-                                BorderSide(color: const Color(0xFFFFDB4F)),
+                        const SizedBox(height: 8),
+                        _buildEditableSection(_nutritionalController),
+                        const SizedBox(height: 16),
+
+                        // Video Tutorial
+                        _buildSectionHeader('TUTORIAL'),
+                        const SizedBox(height: 8),
+                        GestureDetector(
+                          onTap: _pickVideo,
+                          child: Container(
+                            width: double.infinity,
+                            height: 200,
+                            decoration: BoxDecoration(
+                              color: Colors.white,
+                              borderRadius: BorderRadius.circular(8),
+                              border: Border.all(
+                                color: const Color(0xFFFFDB4F),
+                              ),
+                            ),
+                            child:
+                                _videoFile != null
+                                    ? const Center(
+                                      child: Icon(
+                                        Icons.videocam,
+                                        size: 50,
+                                        color: Colors.grey,
+                                      ),
+                                    )
+                                    : _editedRecipe.videoUrl != null
+                                    ? const Center(
+                                      child: Icon(
+                                        Icons.videocam,
+                                        size: 50,
+                                        color: Colors.grey,
+                                      ),
+                                    )
+                                    : const Center(
+                                      child: Text(
+                                        'Tap to add video',
+                                        style: TextStyle(
+                                          color: Colors.black,
+                                          fontSize: 16,
+                                        ),
+                                      ),
+                                    ),
                           ),
                         ),
-                        onChanged: (value) {
-                          setState(() {
-                            _servings = value;
-                          });
-                        },
-                      ),
-                      const SizedBox(height: 16),
-                      _buildSection("INGREDIENTS", ingredientsController),
-                      _buildSection("DIRECTIONS", directionsController),
-                      _buildSection("NUTRITIONAL INFORMATION (PER SERVING)",
-                          nutritionalController),
-                      Text(
-                        "TUTORIAL",
-                        style: TextStyle(
-                          fontSize: 18,
-                          fontWeight: FontWeight.bold,
-                          color: const Color(0xFFFFDB4F),
-                        ),
-                      ),
-                      const SizedBox(height: 8),
-                      GestureDetector(
-                        onTap: () {
-                          if (_hasVideo) {
-                            _showRemoveVideoDialog();
-                          } else {
-                            debugPrint("No video available. Tap to add video.");
-                          }
-                        },
-                        child: Container(
-                          width: double.infinity,
-                          height: 200,
-                          decoration: BoxDecoration(
-                            color: Colors.white,
-                            borderRadius: BorderRadius.circular(8),
-                            border:
-                                Border.all(color: const Color(0xFFFFDB4F)),
+                        if (_videoFile != null ||
+                            _editedRecipe.videoUrl != null)
+                          TextButton(
+                            onPressed: () {
+                              setState(() {
+                                _videoFile = null;
+                                _editedRecipe.videoUrl = null;
+                              });
+                            },
+                            child: const Text(
+                              'Remove Video',
+                              style: TextStyle(color: Colors.red),
+                            ),
                           ),
-                          child: _hasVideo
-                              ? const Center(
-                                  child: Icon(Icons.videocam,
-                                      color: Colors.grey, size: 50),
-                                )
-                              : const Center(
-                                  child: Text(
-                                    "Tap to add video",
-                                    style: TextStyle(
-                                        color: Colors.black, fontSize: 16),
-                                  ),
-                                ),
+                        const SizedBox(height: 32),
+
+                        // Error Message
+                        if (_errorMessage.isNotEmpty)
+                          Padding(
+                            padding: const EdgeInsets.only(bottom: 8.0),
+                            child: Text(
+                              _errorMessage,
+                              style: const TextStyle(color: Colors.red),
+                            ),
+                          ),
+
+                        // Save/Discard Buttons
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                          children: [
+                            _buildActionButton('DISCARD', Colors.grey, () {
+                              Navigator.of(context).pop();
+                            }),
+                            _buildActionButton(
+                              'SAVE',
+                              const Color(0xFFFF8210),
+                              _saveRecipe,
+                            ),
+                          ],
                         ),
-                      ),
-                      const SizedBox(height: 32),
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                        children: [
-                          _buildButton("DISCARD", () {}),
-                          _buildButton("SAVE", () {}),
-                        ],
-                      ),
-                    ],
+                      ],
+                    ),
                   ),
                 ),
               ),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
       bottomNavigationBar: _buildBottomNavBar(),
     );
   }
 
-  Widget _buildSection(String title, TextEditingController controller) {
+  Widget _buildSectionHeader(String text) {
+    return Text(
+      text,
+      style: TextStyle(
+        fontSize: 18,
+        fontWeight: FontWeight.bold,
+        color: const Color(0xFFFFDB4F),
+      ),
+    );
+  }
+
+  Widget _buildPlaceholder(String text) {
+    return Center(
+      child: Text(
+        text,
+        style: TextStyle(color: const Color(0xFF9B9B9B)),
+        textAlign: TextAlign.center,
+      ),
+    );
+  }
+
+  InputDecoration _inputDecoration({String? labelText}) {
+    return InputDecoration(
+      labelText: labelText,
+      border: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(8),
+        borderSide: BorderSide(color: const Color(0xFFFFDB4F)),
+      ),
+      focusedBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(8),
+        borderSide: BorderSide(color: const Color(0xFFFFDB4F)),
+      ),
+      enabledBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(8),
+        borderSide: BorderSide(color: const Color(0xFFFFDB4F)),
+      ),
+    );
+  }
+
+  Widget _buildTimeFields() {
     return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(
-          title,
-          style: TextStyle(
-            fontSize: 18,
-            fontWeight: FontWeight.bold,
-            color: const Color(0xFFFFDB4F),
-          ),
-        ),
+        // Prep Time
+        _buildSectionHeader('PREP TIME'),
         const SizedBox(height: 8),
-        Container(
-          padding: const EdgeInsets.all(8),
-          decoration: BoxDecoration(
-            color: Colors.white,
-            borderRadius: BorderRadius.circular(8),
-            border: Border.all(color: const Color(0xFFFFDB4F)),
-          ),
-          child: TextField(
-            controller: controller,
-            maxLines: null,
-            style: const TextStyle(fontSize: 16, color: Colors.black),
-            decoration: const InputDecoration(
-              border: InputBorder.none,
-              isDense: true,
-            ),
-          ),
+        TextFormField(
+          initialValue: _editedRecipe.prepTime,
+          style: const TextStyle(fontWeight: FontWeight.w600),
+          decoration: _inputDecoration(),
+          validator: (value) {
+            if (value == null || value.isEmpty) {
+              return 'Please enter prep time';
+            }
+            return null;
+          },
+          onChanged: (value) {
+            setState(() {
+              _editedRecipe.prepTime = value;
+            });
+          },
         ),
         const SizedBox(height: 16),
+
+        // Cook Time
+        _buildSectionHeader('COOK TIME'),
+        const SizedBox(height: 8),
+        TextFormField(
+          initialValue: _editedRecipe.cookTime,
+          style: const TextStyle(fontWeight: FontWeight.w600),
+          decoration: _inputDecoration(),
+          validator: (value) {
+            if (value == null || value.isEmpty) {
+              return 'Please enter cook time';
+            }
+            return null;
+          },
+          onChanged: (value) {
+            setState(() {
+              _editedRecipe.cookTime = value;
+            });
+          },
+        ),
+        const SizedBox(height: 16),
+
+        // Total Time
+        _buildSectionHeader('TOTAL TIME'),
+        const SizedBox(height: 8),
+        TextFormField(
+          initialValue: '${_editedRecipe.prepTime} + ${_editedRecipe.cookTime}',
+          style: const TextStyle(fontWeight: FontWeight.w600),
+          decoration: _inputDecoration(),
+          readOnly: true,
+        ),
       ],
     );
   }
 
-  Widget _buildButton(String text, VoidCallback onPressed) {
+  Widget _buildEditableSection(TextEditingController controller) {
+    return Container(
+      padding: const EdgeInsets.all(8),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: const Color(0xFFFFDB4F)),
+      ),
+      child: TextField(
+        controller: controller,
+        maxLines: null,
+        style: const TextStyle(fontSize: 16, color: Colors.black),
+        decoration: const InputDecoration(
+          border: InputBorder.none,
+          isDense: true,
+        ),
+      ),
+    );
+  }
+
+  Widget _buildActionButton(String text, Color color, VoidCallback onPressed) {
     return ElevatedButton(
       onPressed: onPressed,
       style: ElevatedButton.styleFrom(
-        backgroundColor: const Color(0xFFFF8210),
+        backgroundColor: color,
         padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
       ),
       child: Text(
@@ -461,71 +816,13 @@ class RecipePageState extends State {
     );
   }
 
-  void _showRemoveVideoDialog() {
-    showDialog(
-      context: context,
-      builder: (BuildContext context) {
-        return AlertDialog(
-          title: const Text("Remove Video"),
-          content: const Text("Are you sure you want to remove the video?"),
-          actions: [
-            TextButton(
-              onPressed: () {
-                Navigator.of(context).pop();
-              },
-              child: const Text("Cancel"),
-            ),
-            TextButton(
-              onPressed: () {
-                setState(() {
-                  _hasVideo = false;
-                });
-                Navigator.of(context).pop();
-              },
-              child: const Text("Remove", style: TextStyle(color: Colors.red)),
-            ),
-          ],
-        );
-      },
-    );
-  }
-
-  void _showRemoveImageDialog() {
-    showDialog(
-      context: context,
-      builder: (BuildContext context) {
-        return AlertDialog(
-          title: const Text("Remove Image"),
-          content: const Text("Are you sure you want to remove the image?"),
-          actions: [
-            TextButton(
-              onPressed: () {
-                Navigator.of(context).pop();
-              },
-              child: const Text("Cancel"),
-            ),
-            TextButton(
-              onPressed: () {
-                setState(() {
-                  _imagePath = null;
-                });
-                Navigator.of(context).pop();
-              },
-              child: const Text("Remove", style: TextStyle(color: Colors.red)),
-            ),
-          ],
-        );
-      },
-    );
-  }
-
   Widget _buildBottomNavBar() {
     return Container(
-      decoration: BoxDecoration(
+      decoration: const BoxDecoration(
         borderRadius: BorderRadius.vertical(top: Radius.circular(30)),
       ),
       child: ClipRRect(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(30)),
+        borderRadius: const BorderRadius.vertical(top: Radius.circular(30)),
         child: BottomNavigationBar(
           currentIndex: selectedBottomIndex,
           onTap: (index) {

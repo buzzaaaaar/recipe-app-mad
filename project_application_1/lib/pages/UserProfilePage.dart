@@ -1,108 +1,120 @@
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import '../Components/RecipeCard.dart';
+import '../models/user_model.dart';
 
 class UserProfilePage extends StatefulWidget {
+  final String userId;
+
+  const UserProfilePage({super.key, required this.userId});
+
   @override
   _UserProfilePageState createState() => _UserProfilePageState();
 }
 
 class _UserProfilePageState extends State<UserProfilePage> {
   bool isFollowed = false;
-  int _selectedIndex = 2; // Default to profile tab
+  int _selectedIndex = 2;
+  bool isLoading = true;
+  UserModel? user;
+  List<Map<String, dynamic>> userRecipes = [];
 
-  // Popup for Followers and Following
-  void _showPopup(String title) {
-    showDialog(
-      context: context,
-      barrierDismissible: true,
-      builder: (context) {
-        return Dialog(
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(12),
-          ),
-          child: Padding(
-            padding: const EdgeInsets.all(16),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Align(
-                  alignment: Alignment.topRight,
-                  child: IconButton(
-                    icon: Icon(Icons.close, color: Color(0xff0eddd2)),
-                    onPressed: () => Navigator.pop(context),
-                  ),
-                ),
-                Text(
-                  title,
-                  style: TextStyle(
-                    fontSize: 25,
-                    color: Color(0xff0eddd2),
-                    fontFamily: 'AlbertSans',
-                    fontWeight: FontWeight.w700,
-                  ),
-                ),
-                SizedBox(height: 10),
-                ListTile(
-                  leading: CircleAvatar(
-                    radius: 30,
-                    backgroundImage: AssetImage('images/ProfileImage.png'),
-                    backgroundColor:
-                        Colors.transparent, // Make background transparent
-                  ),
-                  title: Text("User 1"),
-                ),
-                SizedBox(height: 5),
-                ListTile(
-                  leading: CircleAvatar(
-                    radius: 30,
-                    backgroundImage: AssetImage('images/ProfileImage.png'),
-                    backgroundColor:
-                        Colors.transparent, // Make background transparent
-                  ),
-                  title: Text("User 2"),
-                ),
-              ],
-            ),
-          ),
-        );
-      },
-    );
+  @override
+  void initState() {
+    super.initState();
+    _loadUserData();
   }
 
-  bool isTappedLeft = false;
-  bool isTappedRight = false;
+  Future<void> _loadUserData() async {
+    try {
+      // First try to get user by document ID
+      final userDoc =
+          await FirebaseFirestore.instance
+              .collection('users')
+              .doc(widget.userId)
+              .get();
 
-  // void _onItemTapped(int index) {
-  //   if (index == 2) {
-  //     Navigator.pushReplacement(
-  //       context,
-  //       MaterialPageRoute(builder: (context) => HomePage()),
-  //     );
-  //   } else if (index == 1) {
-  //     Navigator.pushReplacement(
-  //       context,
-  //       MaterialPageRoute(builder: (context) => ExplorePage()),
-  //     );
-  //   } else {
-  //     setState(() {
-  //       selectedBottomIndex = index;
-  //     });
-  //   }
-  // }
+      if (userDoc.exists) {
+        setState(() {
+          user = UserModel.fromJson(userDoc.data()!);
+        });
+      } else {
+        // If not found by ID, try to find by email
+        final userByEmail =
+            await FirebaseFirestore.instance
+                .collection('users')
+                .where('email', isEqualTo: widget.userId)
+                .limit(1)
+                .get();
+
+        if (userByEmail.docs.isNotEmpty) {
+          setState(() {
+            user = UserModel.fromJson(userByEmail.docs.first.data());
+          });
+        }
+      }
+
+      // Load user's recipes if we found the user
+      if (user != null) {
+        final recipesSnapshot =
+            await FirebaseFirestore.instance
+                .collection('recipes')
+                .where('userId', isEqualTo: user!.id)
+                .limit(2)
+                .get();
+
+        setState(() {
+          userRecipes =
+              recipesSnapshot.docs
+                  .map((doc) => doc.data() as Map<String, dynamic>)
+                  .toList();
+        });
+      }
+    } catch (e) {
+      print('Error loading user data: $e');
+    } finally {
+      setState(() {
+        isLoading = false;
+      });
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
+    if (isLoading) {
+      return const Scaffold(body: Center(child: CircularProgressIndicator()));
+    }
+
+    if (user == null) {
+      return Scaffold(
+        appBar: AppBar(title: const Text('User Not Found')),
+        body: Center(
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              const Text('User data not available'),
+              Text('ID: ${widget.userId}'),
+              ElevatedButton(
+                onPressed: _loadUserData,
+                child: const Text('Retry'),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+
     return Scaffold(
       appBar: AppBar(
         backgroundColor: Colors.white,
         elevation: 0,
         bottom: PreferredSize(
-          preferredSize: Size.fromHeight(2),
-          child: Container(color: Color(0xFFFF8210), height: 2),
+          preferredSize: const Size.fromHeight(2),
+          child: Container(color: const Color(0xFFFF8210), height: 2),
         ),
       ),
       body: Padding(
-        padding: EdgeInsets.all(16),
+        padding: const EdgeInsets.all(16),
         child: Column(
           children: [
             Expanded(
@@ -111,97 +123,74 @@ class _UserProfilePageState extends State<UserProfilePage> {
                   // Profile Image
                   CircleAvatar(
                     radius: 70,
-                    backgroundImage: AssetImage('images/ProfileImage.png'),
-                    backgroundColor:
-                        Colors.transparent, // Make background transparent
+                    backgroundImage:
+                        user!.additionalInfo?['photoUrl'] != null
+                            ? NetworkImage(user!.additionalInfo!['photoUrl'])
+                            : const AssetImage('images/ProfileImage.png')
+                                as ImageProvider,
+                    backgroundColor: Colors.transparent,
                   ),
-                  SizedBox(height: 10),
+                  const SizedBox(height: 10),
 
                   // Username
                   Text(
-                    "JaneDoe456",
-                    style: TextStyle(
+                    user!.username,
+                    style: const TextStyle(
                       fontSize: 32,
                       fontFamily: 'AlbertSans',
                       fontWeight: FontWeight.w700,
                     ),
                   ),
-                  SizedBox(height: 5),
+                  const SizedBox(height: 5),
+
+                  // Email
+                  Text(
+                    user!.email,
+                    style: const TextStyle(color: Colors.grey, fontSize: 16),
+                  ),
+                  const SizedBox(height: 5),
 
                   // Followers & Following Section
                   Row(
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
-                      GestureDetector(
-                        onTap: () {
-                          _showPopup("Followers");
-                          setState(() {
-                            isTappedLeft = true;
-                            isTappedRight = false;
-                          });
-                        },
-                        child: Text(
-                          "10 followers",
-                          style: TextStyle(
-                            color: Color(0xff0eddd2),
-                            fontWeight: FontWeight.w600,
-                            fontSize: 18,
-                            decoration:
-                                isTappedLeft
-                                    ? TextDecoration.underline
-                                    : TextDecoration.none,
-                            decorationColor:
-                                isTappedRight
-                                    ? Color(0xff0eddd2)
-                                    : Colors
-                                        .transparent, // Color of the underline
-                          ),
+                      Text(
+                        "${user!.additionalInfo?['followerCount'] ?? 0} followers",
+                        style: const TextStyle(
+                          color: Color(0xff0eddd2),
+                          fontWeight: FontWeight.w600,
+                          fontSize: 18,
                         ),
                       ),
-                      SizedBox(width: 15),
+                      const SizedBox(width: 15),
                       Container(
                         height: 20,
                         width: 2,
-                        color: Color(0xff0eddd2),
-                      ), // Divider
-                      SizedBox(width: 15),
-                      GestureDetector(
-                        onTap: () {
-                          _showPopup("Following");
-                          setState(() {
-                            isTappedLeft = false;
-                            isTappedRight = true;
-                          });
-                        },
-                        child: Text(
-                          "20 following",
-                          style: TextStyle(
-                            color: Color(0xff0eddd2),
-                            fontWeight: FontWeight.w600,
-                            fontSize: 18,
-                            decoration:
-                                isTappedRight
-                                    ? TextDecoration.underline
-                                    : TextDecoration.none,
-                            decorationColor:
-                                isTappedRight
-                                    ? Color(0xff0eddd2)
-                                    : Colors
-                                        .transparent, // Color of the underline
-                          ),
+                        color: const Color(0xff0eddd2),
+                      ),
+                      const SizedBox(width: 15),
+                      Text(
+                        "${user!.additionalInfo?['followingCount'] ?? 0} following",
+                        style: const TextStyle(
+                          color: Color(0xff0eddd2),
+                          fontWeight: FontWeight.w600,
+                          fontSize: 18,
                         ),
                       ),
                     ],
                   ),
-                  SizedBox(height: 20),
+                  const SizedBox(height: 20),
 
                   // Follow Button
                   OutlinedButton(
                     onPressed: () => setState(() => isFollowed = !isFollowed),
                     style: OutlinedButton.styleFrom(
-                      side: BorderSide(color: Color(0xff0eddd2), width: 2),
+                      side: const BorderSide(
+                        color: Color(0xff0eddd2),
+                        width: 2,
+                      ),
                       backgroundColor:
-                          isFollowed ? Colors.white : Color(0xff0eddd2),
+                          isFollowed ? Colors.white : const Color(0xff0eddd2),
                     ),
                     child: Text(
                       isFollowed ? "FOLLOWING" : "FOLLOW",
@@ -209,7 +198,8 @@ class _UserProfilePageState extends State<UserProfilePage> {
                         fontFamily: 'AlbertSans',
                         fontWeight: FontWeight.w500,
                         fontSize: 18,
-                        color: isFollowed ? Color(0xff0eddd2) : Colors.white,
+                        color:
+                            isFollowed ? const Color(0xff0eddd2) : Colors.white,
                       ),
                     ),
                   ),
@@ -217,92 +207,71 @@ class _UserProfilePageState extends State<UserProfilePage> {
               ),
             ),
 
+            // User's Recipes
             Expanded(
-              child: SizedBox(
-                height: 200.0, // Fixed height for the Expanded widget
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                  children: [
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                      children: [
-                        Padding(
-                          padding: EdgeInsets.only(
-                            top: 8,
-                          ), // Adjust margin as needed
-                          child: RecipeCard(
-                            image: 'images/FluffyPancakes.jpg',
-                            title: "Fluffy Pancakes",
-                            rating: "4.0",
-                            reviews: "12",
+              child:
+                  userRecipes.isEmpty
+                      ? const Center(child: Text('No recipes found'))
+                      : Column(
+                        children: [
+                          Row(
+                            mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                            children:
+                                userRecipes
+                                    .map(
+                                      (recipe) => Padding(
+                                        padding: const EdgeInsets.only(top: 8),
+                                        child: RecipeCard(
+                                          image:
+                                              recipe['imageUrl'] ??
+                                              'images/default_recipe.jpg',
+                                          title:
+                                              recipe['name'] ??
+                                              'Untitled Recipe',
+                                          rating:
+                                              recipe['rating']?.toString() ??
+                                              "0",
+                                          reviews:
+                                              recipe['reviewCount']
+                                                  ?.toString() ??
+                                              "0",
+                                        ),
+                                      ),
+                                    )
+                                    .toList(),
                           ),
-                        ),
-                        Padding(
-                          padding: EdgeInsets.only(top: 8), // Apply same margin
-                          child: RecipeCard(
-                            image: 'images/ChocolateChipCookies.jpg',
-                            title: "Chocolate Chip Cookies",
-                            rating: "3.7",
-                            reviews: "2",
-                          ),
-                        ),
-                      ],
-                    ),
-
-                    // Add space below the Row using SizedBox
-                    SizedBox(height: 10), // Adjust the height as needed
-                  ],
-                ),
-              ),
+                          const SizedBox(height: 10),
+                        ],
+                      ),
             ),
           ],
         ),
       ),
-
-      // Bottom Navigation Bar
       bottomNavigationBar: Container(
         decoration: BoxDecoration(
-          borderRadius: BorderRadius.only(
+          borderRadius: const BorderRadius.only(
             topLeft: Radius.circular(20.0),
             topRight: Radius.circular(20.0),
           ),
-          border: Border.all(color: Color(0xff9b9b9b), width: 1.0),
+          border: Border.all(color: const Color(0xff9b9b9b), width: 1.0),
         ),
         child: ClipRRect(
-          borderRadius: BorderRadius.only(
+          borderRadius: const BorderRadius.only(
             topLeft: Radius.circular(30.0),
             topRight: Radius.circular(30.0),
           ),
-
           child: BottomNavigationBar(
-            backgroundColor: const Color.fromARGB(255, 255, 255, 255),
-            selectedItemColor: Color(0xFFFF8210),
+            backgroundColor: Colors.white,
+            selectedItemColor: const Color(0xFFFF8210),
             unselectedItemColor: Colors.grey,
             showSelectedLabels: false,
             showUnselectedLabels: false,
             currentIndex: _selectedIndex,
             onTap: (index) => setState(() => _selectedIndex = index),
-            items: [
-              BottomNavigationBarItem(
-                icon: Image.asset('images/HomeIcon.png', width: 30, height: 30),
-                label: "",
-              ),
-              BottomNavigationBarItem(
-                icon: Image.asset(
-                  'images/ExploreIcon.png',
-                  width: 30,
-                  height: 30,
-                ),
-                label: "",
-              ),
-              BottomNavigationBarItem(
-                icon: Image.asset(
-                  'images/MyProfileIcon.png',
-                  width: 30,
-                  height: 30,
-                ),
-                label: "",
-              ),
+            items: const [
+              BottomNavigationBarItem(icon: Icon(Icons.home), label: ""),
+              BottomNavigationBarItem(icon: Icon(Icons.search), label: ""),
+              BottomNavigationBarItem(icon: Icon(Icons.person), label: ""),
             ],
           ),
         ),

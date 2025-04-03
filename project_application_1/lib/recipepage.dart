@@ -1,9 +1,11 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import '../models/recipe_model.dart';
+import '../pages/UserProfilePage.dart';
+import 'editrecipepage.dart';
 
 class RecipePage extends StatefulWidget {
-  // Make the recipe parameter optional to handle navigation from different sources
   final Recipe? recipe;
 
   const RecipePage({super.key, this.recipe});
@@ -14,8 +16,10 @@ class RecipePage extends StatefulWidget {
 
 class RecipePageState extends State<RecipePage> {
   int selectedBottomIndex = 0;
+  late User? _currentUser;
+  late String _currentUserId;
 
-  // Default values to use if no recipe is provided
+  // Recipe data variables
   late String title;
   late String category;
   late String prepTime;
@@ -34,6 +38,15 @@ class RecipePageState extends State<RecipePage> {
 
   final Map<String, String> _ingredientNames = {};
 
+  @override
+  void initState() {
+    super.initState();
+    _currentUser = FirebaseAuth.instance.currentUser;
+    _currentUserId = _currentUser?.uid ?? '';
+    _initializeRecipeData();
+    _loadIngredientNames();
+  }
+
   Future<void> _loadIngredientNames() async {
     try {
       final categoriesSnapshot =
@@ -49,7 +62,6 @@ class RecipePageState extends State<RecipePage> {
         }
       }
 
-      // Refresh the UI if we have a recipe
       if (widget.recipe != null && mounted) {
         setState(() {
           formattedIngredients = _formatIngredients(widget.recipe!.ingredients);
@@ -68,24 +80,14 @@ class RecipePageState extends State<RecipePage> {
     }).toList();
   }
 
-  @override
-  void initState() {
-    super.initState();
-    _initializeRecipeData();
-    _loadIngredientNames();
-  }
-
   void _initializeRecipeData() {
     if (widget.recipe != null) {
-      // If a recipe was provided, use its data
       final recipe = widget.recipe!;
       title = recipe.name;
       category = recipe.category;
       prepTime = recipe.prepTime;
       cookTime = recipe.cookTime;
 
-      // Calculate total time (could be more complex in a real app)
-      // This assumes prepTime and cookTime are in format "XX minutes"
       try {
         final prep = int.parse(prepTime.split(' ')[0]);
         final cook = int.parse(cookTime.split(' ')[0]);
@@ -95,12 +97,9 @@ class RecipePageState extends State<RecipePage> {
       }
 
       servings = recipe.servings;
-
       formattedIngredients = _formatIngredients(recipe.ingredients);
-
       directions = recipe.directions;
 
-      // Format nutritional info
       final nutrients = recipe.nutritionalInfo;
       nutritionalInfo = nutrients.entries
           .map((entry) => '${entry.key}: ${entry.value}')
@@ -108,13 +107,13 @@ class RecipePageState extends State<RecipePage> {
 
       imageUrl = recipe.imageUrl;
       videoUrl = recipe.videoUrl;
-
       author = recipe.author;
       date =
           "${recipe.createdAt.month}/${recipe.createdAt.day}/${recipe.createdAt.year}";
       rating = 4.5;
       reviews = 10;
     } else {
+      // Default values if no recipe is provided
       title = "Chocolate Chip Cookies";
       category = "Dessert";
       prepTime = "15 minutes";
@@ -151,67 +150,163 @@ class RecipePageState extends State<RecipePage> {
     }
   }
 
+  bool get _isCurrentUserAuthor {
+    return widget.recipe?.userId == _currentUserId;
+  }
+
+  void _showMenu(BuildContext context) {
+    showMenu(
+      context: context,
+      position: const RelativeRect.fromLTRB(100, 56, 10, 0),
+      items: [
+        const PopupMenuItem(
+          value: 'edit',
+          child: Text(
+            'Edit',
+            style: TextStyle(fontWeight: FontWeight.w800, color: Colors.black),
+          ),
+        ),
+        const PopupMenuItem(
+          value: 'delete',
+          child: Text(
+            'Delete',
+            style: TextStyle(fontWeight: FontWeight.w800, color: Colors.black),
+          ),
+        ),
+      ],
+    ).then((value) {
+      if (value == 'edit') {
+        _handleEditRecipe();
+      } else if (value == 'delete') {
+        _handleDeleteRecipe();
+      }
+    });
+  }
+
+  Future<void> _handleEditRecipe() async {
+    if (widget.recipe != null) {
+      final updatedRecipe = await Navigator.push<Recipe>(
+        context,
+        MaterialPageRoute(
+          builder: (context) => EditRecipePage(recipe: widget.recipe!),
+        ),
+      );
+
+      if (updatedRecipe != null && mounted) {
+        // Update the widget's recipe reference
+        widget.recipe!.name = updatedRecipe.name;
+        widget.recipe!.category = updatedRecipe.category;
+        widget.recipe!.prepTime = updatedRecipe.prepTime;
+        widget.recipe!.cookTime = updatedRecipe.cookTime;
+        widget.recipe!.servings = updatedRecipe.servings;
+        widget.recipe!.ingredients = updatedRecipe.ingredients;
+        widget.recipe!.directions = updatedRecipe.directions;
+        widget.recipe!.nutritionalInfo = updatedRecipe.nutritionalInfo;
+        widget.recipe!.imageUrl = updatedRecipe.imageUrl;
+        widget.recipe!.videoUrl = updatedRecipe.videoUrl;
+
+        // Refresh the displayed data
+        setState(() {
+          _initializeRecipeData();
+        });
+
+        // Reload ingredient names in case they changed
+        await _loadIngredientNames();
+      }
+    }
+  }
+
+  void _handleDeleteRecipe() async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder:
+          (context) => AlertDialog(
+            title: const Text('Delete Recipe'),
+            content: const Text('Are you sure you want to delete this recipe?'),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(context, false),
+                child: const Text('Cancel'),
+              ),
+              TextButton(
+                onPressed: () => Navigator.pop(context, true),
+                child: const Text(
+                  'Delete',
+                  style: TextStyle(color: Colors.red),
+                ),
+              ),
+            ],
+          ),
+    );
+
+    if (confirmed == true && widget.recipe?.id != null) {
+      try {
+        await FirebaseFirestore.instance
+            .collection('recipes')
+            .doc(widget.recipe!.id)
+            .delete();
+
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Recipe deleted successfully')),
+        );
+
+        Navigator.of(context).pop();
+      } catch (e) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('Error deleting recipe: $e')));
+      }
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: Color(0xFFFFDB4F), // Background color
+      backgroundColor: const Color(0xFFFFDB4F),
       appBar: AppBar(
-        backgroundColor: Colors.white, // App bar color
+        backgroundColor: Colors.white,
         title: Center(
           child: Text(
             'Recipe',
             style: TextStyle(
-              fontFamily: 'AlbertSans', // Font family
-              fontWeight: FontWeight.w600, // Semibold
-              color: Color(0xFFFF8210), // Title color
+              fontFamily: 'AlbertSans',
+              fontWeight: FontWeight.w600,
+              color: const Color(0xFFFF8210),
             ),
           ),
         ),
         leading: IconButton(
-          icon: Icon(Icons.arrow_back, color: Color(0xFFFF8210)),
+          icon: const Icon(Icons.arrow_back, color: Color(0xFFFF8210)),
           onPressed: () => Navigator.of(context).pop(),
         ),
         actions: [
-          IconButton(
-            icon: Icon(
-              Icons.more_horiz,
-              color: Color(0xFFFF8210),
-            ), // Horizontal three-dot icon
-            onPressed: () {
-              _showMenu(context);
-            },
-          ),
+          if (_isCurrentUserAuthor) // Only show menu if current user is author
+            IconButton(
+              icon: const Icon(Icons.more_horiz, color: Color(0xFFFF8210)),
+              onPressed: () => _showMenu(context),
+            ),
         ],
       ),
       body: Column(
         children: [
-          // Border separating the navigation bar and the content
           Container(
             height: 2,
-            color: const Color.fromARGB(
-              255,
-              234,
-              113,
-              15,
-            ).withOpacity(0.2), // Border color
+            color: const Color.fromARGB(255, 234, 113, 15).withOpacity(0.2),
           ),
           Expanded(
             child: SingleChildScrollView(
-              // Enable scrolling
               child: Center(
                 child: Container(
-                  width:
-                      MediaQuery.of(context).size.width *
-                      0.9, // Increased width with margin
+                  width: MediaQuery.of(context).size.width * 0.9,
                   decoration: BoxDecoration(
-                    color: Colors.white, // Box color
-                    borderRadius: BorderRadius.circular(20), // Curved corners
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(20),
                   ),
-                  padding: const EdgeInsets.all(16), // Padding inside the box
+                  padding: const EdgeInsets.all(16),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.center,
                     children: [
-                      // 🔵 Recipe Image
+                      // Recipe Image
                       imageUrl != null
                           ? ClipRRect(
                             borderRadius: BorderRadius.circular(80),
@@ -238,20 +333,21 @@ class RecipePageState extends State<RecipePage> {
                                 (_, __) =>
                                     const Icon(Icons.broken_image, size: 50),
                           ),
+
                       const SizedBox(height: 16),
 
-                      // 🏷 Recipe Title
+                      // Recipe Title
                       Text(
                         title,
                         style: const TextStyle(
-                          fontSize: 46, // Increased font size
+                          fontSize: 46,
                           fontWeight: FontWeight.bold,
                         ),
                         textAlign: TextAlign.center,
                       ),
                       const SizedBox(height: 8),
 
-                      // ⭐ Rating and Review Count
+                      // Rating and Review Count
                       Row(
                         mainAxisAlignment: MainAxisAlignment.center,
                         children: [
@@ -262,7 +358,6 @@ class RecipePageState extends State<RecipePage> {
                               fontWeight: FontWeight.bold,
                             ),
                           ),
-                          // Display stars based on rating
                           ...List.generate(5, (index) {
                             return Icon(
                               index < rating.floor()
@@ -277,15 +372,29 @@ class RecipePageState extends State<RecipePage> {
                       ),
                       const SizedBox(height: 8),
 
-                      // ✍ Author and Date
+                      // Author and Date
                       Row(
                         mainAxisAlignment: MainAxisAlignment.center,
                         children: [
-                          Text(
-                            author,
-                            style: const TextStyle(
-                              color: Colors.blue,
-                              fontWeight: FontWeight.bold,
+                          GestureDetector(
+                            onTap: () {
+                              Navigator.push(
+                                context,
+                                MaterialPageRoute(
+                                  builder:
+                                      (context) => UserProfilePage(
+                                        userId: widget.recipe?.userId ?? '',
+                                      ),
+                                ),
+                              );
+                            },
+                            child: Text(
+                              author,
+                              style: const TextStyle(
+                                color: Colors.blue,
+                                fontWeight: FontWeight.bold,
+                                decoration: TextDecoration.underline,
+                              ),
                             ),
                           ),
                           const SizedBox(width: 8),
@@ -293,8 +402,6 @@ class RecipePageState extends State<RecipePage> {
                         ],
                       ),
                       const SizedBox(height: 8),
-
-                      // 🏷 Category Badge
                       Container(
                         padding: const EdgeInsets.symmetric(
                           horizontal: 12,
@@ -314,21 +421,18 @@ class RecipePageState extends State<RecipePage> {
                       ),
                       const SizedBox(height: 16),
 
-                      // 🔘 SAVE & RATE Buttons
+                      // SAVE & RATE Buttons
                       Row(
                         mainAxisAlignment: MainAxisAlignment.center,
                         children: [
                           _buildButton("SAVE", Colors.orange),
                           const SizedBox(width: 16),
-                          _buildButton(
-                            "RATE",
-                            const Color(0xFF0EDDD2),
-                          ), // Rate button color updated
+                          _buildButton("RATE", const Color(0xFF0EDDD2)),
                         ],
                       ),
                       const SizedBox(height: 16),
 
-                      // 📦 Recipe Info Box
+                      // Recipe Info Box
                       Container(
                         padding: const EdgeInsets.all(12),
                         decoration: BoxDecoration(
@@ -371,7 +475,7 @@ class RecipePageState extends State<RecipePage> {
                       ),
                       const SizedBox(height: 16),
 
-                      // 📝 Ingredients Section
+                      // Ingredients Section
                       const Align(
                         alignment: Alignment.centerLeft,
                         child: Text(
@@ -396,7 +500,7 @@ class RecipePageState extends State<RecipePage> {
                           .toList(),
                       const SizedBox(height: 16),
 
-                      // 📜 Directions Section
+                      // Directions Section
                       const Align(
                         alignment: Alignment.centerLeft,
                         child: Text(
@@ -420,7 +524,7 @@ class RecipePageState extends State<RecipePage> {
                       ),
                       const SizedBox(height: 16),
 
-                      // 📊 Nutritional Information Section
+                      // Nutritional Information Section
                       const Align(
                         alignment: Alignment.centerLeft,
                         child: Text(
@@ -441,7 +545,7 @@ class RecipePageState extends State<RecipePage> {
                       ),
                       const SizedBox(height: 16),
 
-                      // 📹 Tutorial Section
+                      // Tutorial Section
                       if (videoUrl != null) ...[
                         const Align(
                           alignment: Alignment.centerLeft,
@@ -456,14 +560,12 @@ class RecipePageState extends State<RecipePage> {
                         ),
                         Container(
                           width: double.infinity,
-                          height: 200, // Height for video box
+                          height: 200,
                           decoration: BoxDecoration(
-                            color:
-                                Colors.grey[300], // Placeholder color for video
+                            color: Colors.grey[300],
                             borderRadius: BorderRadius.circular(8),
                           ),
                           child: Center(
-                            // Replace this with a video player widget that uses videoUrl
                             child: Icon(
                               Icons.play_circle_fill,
                               size: 60,
@@ -569,48 +671,6 @@ class RecipePageState extends State<RecipePage> {
     );
   }
 
-  // Function to show the popup menu
-  void _showMenu(BuildContext context) {
-    showMenu(
-      context: context,
-      position: const RelativeRect.fromLTRB(
-        100,
-        56,
-        10,
-        0,
-      ), // Adjust position to be closer to the dots
-      items: [
-        const PopupMenuItem(
-          value: 'edit',
-          child: Text(
-            'Edit',
-            style: TextStyle(
-              fontWeight: FontWeight.w800, // Extrabold
-              color: Colors.black, // Black color
-            ),
-          ),
-        ),
-        const PopupMenuItem(
-          value: 'delete',
-          child: Text(
-            'Delete',
-            style: TextStyle(
-              fontWeight: FontWeight.w800, // Extrabold
-              color: Colors.black, // Black color
-            ),
-          ),
-        ),
-      ],
-    ).then((value) {
-      if (value == 'edit') {
-        // Handle edit action
-      } else if (value == 'delete') {
-        // Handle delete action
-      }
-    });
-  }
-
-  // Helper method to build buttons
   Widget _buildButton(String label, Color color) {
     return ElevatedButton(
       onPressed: () {
