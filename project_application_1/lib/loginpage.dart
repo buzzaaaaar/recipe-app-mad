@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'signuppage.dart';
 import 'screens/home_page.dart';
-import 'createrecipepage.dart';
 
 class LoginPage extends StatefulWidget {
   const LoginPage({super.key});
@@ -12,13 +11,14 @@ class LoginPage extends StatefulWidget {
 }
 
 class LoginPageState extends State<LoginPage> {
-  final _emailController =
-      TextEditingController(); // Changed from username to email
+  final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
   final _formKey = GlobalKey<FormState>();
+
   bool _isButtonPressed = false;
   bool _isSignUpLinkPressed = false;
   bool _isLoading = false;
+  bool _isPasswordVisible = false;
   String? _errorMessage;
 
   @override
@@ -27,7 +27,6 @@ class LoginPageState extends State<LoginPage> {
       backgroundColor: Colors.white,
       body: Stack(
         children: [
-          // Background Images
           Positioned(
             top: -80,
             left: -80,
@@ -38,8 +37,6 @@ class LoginPageState extends State<LoginPage> {
             right: -80,
             child: Image.asset('assets/bottomshape.png', width: 300),
           ),
-
-          // Login Box
           Center(
             child: SingleChildScrollView(
               child: Container(
@@ -74,35 +71,7 @@ class LoginPageState extends State<LoginPage> {
                         style: TextStyle(fontSize: 16, color: Colors.black54),
                       ),
                       const SizedBox(height: 20),
-
-                      // Error message display
-                      if (_errorMessage != null)
-                        Container(
-                          padding: const EdgeInsets.all(10),
-                          margin: const EdgeInsets.only(bottom: 15),
-                          decoration: BoxDecoration(
-                            color: Colors.red.shade50,
-                            borderRadius: BorderRadius.circular(8),
-                            border: Border.all(color: Colors.red.shade200),
-                          ),
-                          child: Row(
-                            children: [
-                              const Icon(
-                                Icons.error_outline,
-                                color: Colors.red,
-                              ),
-                              const SizedBox(width: 10),
-                              Expanded(
-                                child: Text(
-                                  _errorMessage!,
-                                  style: const TextStyle(color: Colors.red),
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-
-                      // Email Field (changed from username)
+                      if (_errorMessage != null) _buildErrorMessage(),
                       _buildTextField(
                         controller: _emailController,
                         label: "EMAIL",
@@ -118,14 +87,17 @@ class LoginPageState extends State<LoginPage> {
                           return null;
                         },
                       ),
-
                       const SizedBox(height: 10),
-
-                      // Password Field
                       _buildTextField(
                         controller: _passwordController,
                         label: "PASSWORD",
                         isPassword: true,
+                        isPasswordVisible: _isPasswordVisible,
+                        onTogglePassword: () {
+                          setState(() {
+                            _isPasswordVisible = !_isPasswordVisible;
+                          });
+                        },
                         validator: (value) {
                           if (value == null || value.isEmpty) {
                             return 'Please enter your password';
@@ -136,10 +108,7 @@ class LoginPageState extends State<LoginPage> {
                           return null;
                         },
                       ),
-
                       const SizedBox(height: 20),
-
-                      // Login Button
                       ElevatedButton(
                         onPressed: _isLoading ? null : _handleLogin,
                         style: ElevatedButton.styleFrom(
@@ -147,8 +116,8 @@ class LoginPageState extends State<LoginPage> {
                               _isButtonPressed
                                   ? Colors.white
                                   : const Color(0xFFFFDB4F),
-                          side: BorderSide(
-                            color: const Color(0xFFFFDB4F),
+                          side: const BorderSide(
+                            color: Color(0xFFFFDB4F),
                             width: 2,
                           ),
                           minimumSize: const Size(double.infinity, 50),
@@ -179,10 +148,7 @@ class LoginPageState extends State<LoginPage> {
                                   ),
                                 ),
                       ),
-
                       const SizedBox(height: 15),
-
-                      // Sign-up Link
                       Row(
                         mainAxisAlignment: MainAxisAlignment.center,
                         children: [
@@ -217,6 +183,30 @@ class LoginPageState extends State<LoginPage> {
     );
   }
 
+  Widget _buildErrorMessage() {
+    return Container(
+      padding: const EdgeInsets.all(10),
+      margin: const EdgeInsets.only(bottom: 15),
+      decoration: BoxDecoration(
+        color: Colors.red.shade50,
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: Colors.red.shade200),
+      ),
+      child: Row(
+        children: [
+          const Icon(Icons.error_outline, color: Colors.red),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Text(
+              _errorMessage!,
+              style: const TextStyle(color: Colors.red),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   Future<void> _handleLogin() async {
     if (_formKey.currentState!.validate()) {
       setState(() {
@@ -234,7 +224,7 @@ class LoginPageState extends State<LoginPage> {
         if (mounted) {
           Navigator.pushReplacement(
             context,
-            MaterialPageRoute(builder: (context) => HomePage()),
+            MaterialPageRoute(builder: (context) => HomePage()), // ✅ FIXED
           );
         }
       } on FirebaseAuthException catch (e) {
@@ -291,11 +281,12 @@ class LoginPageState extends State<LoginPage> {
     });
   }
 
-  // Custom Input Field Widget
   static Widget _buildTextField({
     required TextEditingController controller,
     required String label,
     bool isPassword = false,
+    bool isPasswordVisible = false,
+    VoidCallback? onTogglePassword,
     int? maxLength,
     String? Function(String?)? validator,
   }) {
@@ -312,7 +303,7 @@ class LoginPageState extends State<LoginPage> {
         const SizedBox(height: 5),
         TextFormField(
           controller: controller,
-          obscureText: isPassword,
+          obscureText: isPassword && !isPasswordVisible,
           maxLength: maxLength,
           validator: validator,
           decoration: InputDecoration(
@@ -325,6 +316,17 @@ class LoginPageState extends State<LoginPage> {
               borderRadius: BorderRadius.circular(8),
               borderSide: const BorderSide(color: Color(0xFFFFDB4F)),
             ),
+            suffixIcon:
+                isPassword
+                    ? IconButton(
+                      icon: Icon(
+                        isPasswordVisible
+                            ? Icons.visibility
+                            : Icons.visibility_off,
+                      ),
+                      onPressed: onTogglePassword,
+                    )
+                    : null,
           ),
         ),
       ],
