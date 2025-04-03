@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
 import '../models/recipe_model.dart';
-import '../recipepage.dart'; // Import the recipe page
+import '../recipepage.dart';
 
-class RecipeCard extends StatelessWidget {
+class RecipeCard extends StatefulWidget {
   final String imageUrl;
   final String title;
   final String author;
@@ -10,7 +10,9 @@ class RecipeCard extends StatelessWidget {
   final int reviews;
   final bool canMake;
   final int missingIngredients;
-  final Recipe? recipe; // Added recipe model for navigation
+  final Recipe? recipe;
+  final bool isSaved;
+  final VoidCallback onToggleSave;
 
   const RecipeCard({
     Key? key,
@@ -22,22 +24,54 @@ class RecipeCard extends StatelessWidget {
     required this.canMake,
     required this.missingIngredients,
     this.recipe,
+    required this.isSaved,
+    required this.onToggleSave,
   }) : super(key: key);
+
+  @override
+  State<RecipeCard> createState() => _RecipeCardState();
+}
+
+class _RecipeCardState extends State<RecipeCard>
+    with SingleTickerProviderStateMixin {
+  late AnimationController _controller;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = AnimationController(
+      duration: const Duration(milliseconds: 200),
+      lowerBound: 0.8,
+      upperBound: 1.2,
+      vsync: this,
+    );
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  void _handleSaveTap() {
+    _controller.forward().then((_) {
+      _controller.reverse();
+    });
+    widget.onToggleSave();
+  }
 
   @override
   Widget build(BuildContext context) {
     return GestureDetector(
       onTap: () {
-        // Navigate to recipe page when card is tapped
-        if (recipe != null) {
+        if (widget.recipe != null) {
           Navigator.push(
             context,
             MaterialPageRoute(
-              builder: (context) => RecipePage(recipe: recipe!),
+              builder: (context) => RecipePage(recipe: widget.recipe!),
             ),
           );
         } else {
-          // If no recipe data available, we can create a default one
           Navigator.push(
             context,
             MaterialPageRoute(builder: (context) => RecipePage()),
@@ -50,13 +84,12 @@ class RecipeCard extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // Recipe image with "Can Make" indicator
             Stack(
               children: [
                 ClipRRect(
                   borderRadius: BorderRadius.vertical(top: Radius.circular(15)),
                   child: Image.asset(
-                    imageUrl,
+                    widget.imageUrl,
                     height: 150,
                     width: double.infinity,
                     fit: BoxFit.cover,
@@ -64,52 +97,55 @@ class RecipeCard extends StatelessWidget {
                         (context, error, stackTrace) => Container(
                           height: 150,
                           color: Colors.grey[300],
-                          child: Center(child: Icon(Icons.broken_image)),
+                          child: const Center(child: Icon(Icons.broken_image)),
                         ),
                   ),
                 ),
-                if (canMake)
-                  Positioned(
-                    top: 10,
-                    right: 10,
-                    child: Container(
-                      padding: EdgeInsets.symmetric(
-                        horizontal: 12,
-                        vertical: 6,
+
+                // ❤️ Heart with bounce
+                Positioned(
+                  top: 10,
+                  left: 10,
+                  child: GestureDetector(
+                    onTap: _handleSaveTap,
+                    child: ScaleTransition(
+                      scale: _controller.drive(
+                        Tween(
+                          begin: 1.0,
+                          end: 1.2,
+                        ).chain(CurveTween(curve: Curves.easeOut)),
                       ),
-                      decoration: BoxDecoration(
-                        color: Colors.green,
-                        borderRadius: BorderRadius.circular(20),
-                      ),
-                      child: Text(
-                        "Can Make!",
-                        style: TextStyle(
-                          color: Colors.white,
-                          fontWeight: FontWeight.bold,
+                      child: Container(
+                        decoration: BoxDecoration(
+                          color: Colors.white.withOpacity(0.9),
+                          shape: BoxShape.circle,
+                        ),
+                        padding: const EdgeInsets.all(6),
+                        child: Icon(
+                          widget.isSaved
+                              ? Icons.favorite
+                              : Icons.favorite_border,
+                          color: widget.isSaved ? Colors.red : Colors.grey,
+                          size: 20,
                         ),
                       ),
                     ),
                   ),
-                if (!canMake && missingIngredients > 0)
+                ),
+
+                if (widget.canMake)
                   Positioned(
                     top: 10,
                     right: 10,
-                    child: Container(
-                      padding: EdgeInsets.symmetric(
-                        horizontal: 12,
-                        vertical: 6,
-                      ),
-                      decoration: BoxDecoration(
-                        color: Colors.orange,
-                        borderRadius: BorderRadius.circular(20),
-                      ),
-                      child: Text(
-                        "Missing $missingIngredients",
-                        style: TextStyle(
-                          color: Colors.white,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
+                    child: _buildTag("Can Make!", Colors.green),
+                  ),
+                if (!widget.canMake && widget.missingIngredients > 0)
+                  Positioned(
+                    top: 10,
+                    right: 10,
+                    child: _buildTag(
+                      "Missing ${widget.missingIngredients}",
+                      Colors.orange,
                     ),
                   ),
               ],
@@ -120,29 +156,27 @@ class RecipeCard extends StatelessWidget {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  // Recipe title
                   Text(
-                    title,
-                    style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                    widget.title,
+                    style: const TextStyle(
+                      fontSize: 18,
+                      fontWeight: FontWeight.bold,
+                    ),
                     maxLines: 2,
                     overflow: TextOverflow.ellipsis,
                   ),
-                  SizedBox(height: 4),
-
-                  // Author
+                  const SizedBox(height: 4),
                   Text(
-                    "By $author",
+                    "By ${widget.author}",
                     style: TextStyle(fontSize: 14, color: Colors.grey[600]),
                   ),
-                  SizedBox(height: 8),
-
-                  // Rating
+                  const SizedBox(height: 8),
                   Row(
                     children: [
-                      Icon(Icons.star, color: Colors.orange, size: 16),
-                      SizedBox(width: 4),
+                      const Icon(Icons.star, color: Colors.orange, size: 16),
+                      const SizedBox(width: 4),
                       Text(
-                        "$rating · $reviews reviews",
+                        "${widget.rating} · ${widget.reviews} reviews",
                         style: TextStyle(fontSize: 14, color: Colors.grey[700]),
                       ),
                     ],
@@ -151,6 +185,23 @@ class RecipeCard extends StatelessWidget {
               ),
             ),
           ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildTag(String text, Color color) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+      decoration: BoxDecoration(
+        color: color,
+        borderRadius: BorderRadius.circular(20),
+      ),
+      child: Text(
+        text,
+        style: const TextStyle(
+          color: Colors.white,
+          fontWeight: FontWeight.bold,
         ),
       ),
     );

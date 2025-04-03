@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import '../Components/RecipeCard.dart';
+import '../screens/saved_recipes_page.dart';
 
 class UserProfilePage extends StatefulWidget {
   @override
@@ -7,288 +7,313 @@ class UserProfilePage extends StatefulWidget {
 }
 
 class _UserProfilePageState extends State<UserProfilePage> {
-  bool isFollowed = false;
-  int _selectedIndex = 2; // Default to profile tab
+  bool _isFollowed = false;
+  int _selectedIndex = 2;
+  bool _isTappedLeft = false;
+  bool _isTappedRight = false;
 
-  // Popup for Followers and Following
   void _showPopup(String title) {
     showDialog(
       context: context,
       barrierDismissible: true,
       builder: (context) {
-        return Dialog(
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(12),
-          ),
-          child: Padding(
-            padding: const EdgeInsets.all(16),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Align(
-                  alignment: Alignment.topRight,
-                  child: IconButton(
-                    icon: Icon(Icons.close, color: Color(0xff0eddd2)),
-                    onPressed: () => Navigator.pop(context),
-                  ),
-                ),
-                Text(
-                  title,
-                  style: TextStyle(
-                    fontSize: 25,
-                    color: Color(0xff0eddd2),
-                    fontFamily: 'AlbertSans',
-                    fontWeight: FontWeight.w700,
-                  ),
-                ),
-                SizedBox(height: 10),
-                ListTile(
-                  leading: CircleAvatar(
-                    radius: 30,
-                    backgroundImage: AssetImage('images/ProfileImage.png'),
-                    backgroundColor:
-                        Colors.transparent, // Make background transparent
-                  ),
-                  title: Text("User 1"),
-                ),
-                SizedBox(height: 5),
-                ListTile(
-                  leading: CircleAvatar(
-                    radius: 30,
-                    backgroundImage: AssetImage('images/ProfileImage.png'),
-                    backgroundColor:
-                        Colors.transparent, // Make background transparent
-                  ),
-                  title: Text("User 2"),
-                ),
-              ],
-            ),
-          ),
-        );
+        return _buildDialog(title);
       },
     );
   }
 
-  bool isTappedLeft = false;
-  bool isTappedRight = false;
+  Widget _buildDialog(String title) {
+    return Dialog(
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            _buildCloseButton(),
+            _buildDialogTitle(title),
+            _buildListTile(),
+            _buildListTile(),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildCloseButton() {
+    return Align(
+      alignment: Alignment.topRight,
+      child: IconButton(
+        icon: const Icon(Icons.close, color: Color(0xff0eddd2)),
+        onPressed: () => Navigator.pop(context),
+      ),
+    );
+  }
+
+  Widget _buildDialogTitle(String title) {
+    return Text(
+      title,
+      style: const TextStyle(
+        fontSize: 25,
+        color: Color(0xff0eddd2),
+        fontFamily: 'AlbertSans',
+        fontWeight: FontWeight.w700,
+      ),
+    );
+  }
+
+  Widget _buildListTile() {
+    return ListTile(
+      leading: const CircleAvatar(
+        radius: 30,
+        backgroundImage: AssetImage('images/ProfileImage.png'),
+        backgroundColor: Colors.transparent,
+      ),
+      title: const Text("User "),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        backgroundColor: Colors.white,
-        elevation: 0,
-        bottom: PreferredSize(
-          preferredSize: Size.fromHeight(2),
-          child: Container(color: Color(0xFFFF8210), height: 2),
+      appBar: _buildAppBar(),
+      backgroundColor: Colors.white,
+      body: _buildBody(),
+      bottomNavigationBar: _buildBottomNavigationBar(),
+    );
+  }
+
+  Widget _buildAppBar() {
+    return AppBar(
+      backgroundColor: Colors.white,
+      elevation: 0,
+      bottom: PreferredSize(
+        preferredSize: const Size.fromHeight(2),
+        child: Container(color: const Color(0xFFFF8210), height: 2),
+      ),
+    );
+  }
+
+  Widget _buildBody() {
+    return Padding(
+      padding: const EdgeInsets.all(16),
+      child: Column(
+        children: [_buildProfileSection(), _buildSavedRecipesSection()],
+      ),
+    );
+  }
+
+  Widget _buildProfileSection() {
+    return Expanded(
+      child: Column(
+        children: [
+          _buildProfileImage(),
+          _buildProfileName(),
+          _buildFollowersAndFollowing(),
+          _buildFollowButton(),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildProfileImage() {
+    return const CircleAvatar(
+      radius: 70,
+      backgroundImage: AssetImage('images/ProfileImage.png'),
+      backgroundColor: Colors.transparent,
+    );
+  }
+
+  Widget _buildProfileName() {
+    return const Text(
+      "JaneDoe456",
+      style: TextStyle(
+        fontSize: 32,
+        fontFamily: 'AlbertSans',
+        fontWeight: FontWeight.w700,
+      ),
+    );
+  }
+
+  Widget _buildFollowersAndFollowing() {
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.center,
+      children: [_buildFollowers(), _buildFollowing()],
+    );
+  }
+
+  Widget _buildFollowers() {
+    return GestureDetector(
+      onTap: () {
+        _showPopup("Followers");
+        setState(() {
+          _isTappedLeft = true;
+          _isTappedRight = false;
+        });
+      },
+      child: Text(
+        "10 followers",
+        style: TextStyle(
+          color: const Color(0xff0eddd2),
+          fontWeight: FontWeight.w600,
+          fontSize: 18,
+          decoration:
+              _isTappedLeft ? TextDecoration.underline : TextDecoration.none,
+          decorationColor:
+              _isTappedLeft ? const Color(0xff0eddd2) : Colors.transparent,
         ),
       ),
-      body: Padding(
-        padding: EdgeInsets.all(16),
-        child: Column(
-          children: [
-            Expanded(
-              child: Column(
-                children: [
-                  // Profile Image
-                  CircleAvatar(
-                    radius: 70,
-                    backgroundImage: AssetImage('images/ProfileImage.png'),
-                    backgroundColor:
-                        Colors.transparent, // Make background transparent
-                  ),
-                  SizedBox(height: 10),
+    );
+  }
 
-                  // Username
-                  Text(
-                    "JaneDoe456",
-                    style: TextStyle(
-                      fontSize: 32,
-                      fontFamily: 'AlbertSans',
-                      fontWeight: FontWeight.w700,
-                    ),
-                  ),
-                  SizedBox(height: 5),
+  Widget _buildFollowing() {
+    return GestureDetector(
+      onTap: () {
+        _showPopup("Following");
+        setState(() {
+          _isTappedLeft = false;
+          _isTappedRight = true;
+        });
+      },
+      child: Text(
+        "20 following",
+        style: TextStyle(
+          color: const Color(0xff0eddd2),
+          fontWeight: FontWeight.w600,
+          fontSize: 18,
+          decoration:
+              _isTappedRight ? TextDecoration.underline : TextDecoration.none,
+          decorationColor:
+              _isTappedRight ? const Color(0xff0eddd2) : Colors.transparent,
+        ),
+      ),
+    );
+  }
 
-                  // Followers & Following Section
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      GestureDetector(
-                        onTap: () {
-                          _showPopup("Followers");
-                          setState(() {
-                            isTappedLeft = true;
-                            isTappedRight = false;
-                          });
-                        },
-                        child: Text(
-                          "10 followers",
-                          style: TextStyle(
-                            color: Color(0xff0eddd2),
-                            fontWeight: FontWeight.w600,
-                            fontSize: 18,
-                            decoration:
-                                isTappedLeft
-                                    ? TextDecoration.underline
-                                    : TextDecoration.none,
-                            decorationColor:
-                                isTappedRight
-                                    ? Color(0xff0eddd2)
-                                    : Colors
-                                        .transparent, // Color of the underline
-                          ),
-                        ),
-                      ),
-                      SizedBox(width: 15),
-                      Container(
-                        height: 20,
-                        width: 2,
-                        color: Color(0xff0eddd2),
-                      ), // Divider
-                      SizedBox(width: 15),
-                      GestureDetector(
-                        onTap: () {
-                          _showPopup("Following");
-                          setState(() {
-                            isTappedLeft = false;
-                            isTappedRight = true;
-                          });
-                        },
-                        child: Text(
-                          "20 following",
-                          style: TextStyle(
-                            color: Color(0xff0eddd2),
-                            fontWeight: FontWeight.w600,
-                            fontSize: 18,
-                            decoration:
-                                isTappedRight
-                                    ? TextDecoration.underline
-                                    : TextDecoration.none,
-                            decorationColor:
-                                isTappedRight
-                                    ? Color(0xff0eddd2)
-                                    : Colors
-                                        .transparent, // Color of the underline
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                  SizedBox(height: 20),
+  Widget _buildFollowButton() {
+    return OutlinedButton(
+      onPressed: () => setState(() => _isFollowed = !_isFollowed),
+      style: OutlinedButton.styleFrom(
+        side: const BorderSide(color: Color(0xff0eddd2), width: 2),
+        backgroundColor: _isFollowed ? Colors.white : const Color(0xff0eddd2),
+      ),
+      child: Text(
+        _isFollowed ? "FOLLOWING" : "FOLLOW",
+        style: TextStyle(
+          fontFamily: 'AlbertSans',
+          fontWeight: FontWeight.w500,
+          fontSize: 18,
+          color: _isFollowed ? const Color(0xff0eddd2) : Colors.white,
+        ),
+      ),
+    );
+  }
 
-                  // Follow Button
-                  OutlinedButton(
-                    onPressed: () => setState(() => isFollowed = !isFollowed),
-                    style: OutlinedButton.styleFrom(
-                      side: BorderSide(color: Color(0xff0eddd2), width: 2),
-                      backgroundColor:
-                          isFollowed ? Colors.white : Color(0xff0eddd2),
-                    ),
-                    child: Text(
-                      isFollowed ? "FOLLOWING" : "FOLLOW",
-                      style: TextStyle(
-                        fontFamily: 'AlbertSans',
-                        fontWeight: FontWeight.w500,
-                        fontSize: 18,
-                        color: isFollowed ? Color(0xff0eddd2) : Colors.white,
-                      ),
-                    ),
-                  ),
-                ],
-              ),
+  Widget _buildSavedRecipesSection() {
+    return Expanded(
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          _buildSavedRecipesTitle(),
+          _buildViewSavedRecipesButton(),
+          _buildSavedRecipesDescription(),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildSavedRecipesTitle() {
+    return const Text(
+      "Your Saved Recipes",
+      style: TextStyle(
+        fontFamily: 'AlbertSans',
+        fontSize: 20,
+        fontWeight: FontWeight.bold,
+      ),
+    );
+  }
+
+  Widget _buildViewSavedRecipesButton() {
+    return ElevatedButton.icon(
+      onPressed: () {
+        Navigator.push(
+          context,
+          MaterialPageRoute(builder: (context) => const SavedRecipesPage()),
+        );
+      },
+      icon: const Icon(Icons.favorite_border),
+      label: const Text("View Saved Recipes"),
+      style: ElevatedButton.styleFrom(
+        foregroundColor: Colors.white,
+        backgroundColor: const Color(0xFFFF8210),
+        padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+        textStyle: const TextStyle(
+          fontSize: 16,
+          fontFamily: 'AlbertSans',
+          fontWeight: FontWeight.w600,
+        ),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+      ),
+    );
+  }
+
+  Widget _buildSavedRecipesDescription() {
+    return const Text(
+      "Access all your favourites in one place!",
+      style: TextStyle(
+        fontSize: 14,
+        fontFamily: 'AlbertSans',
+        color: Colors.grey,
+      ),
+    );
+  }
+
+  Widget _buildBottomNavigationBar() {
+    return Container(
+      decoration: BoxDecoration(
+        borderRadius: const BorderRadius.only(
+          topLeft: Radius.circular(20.0),
+          topRight: Radius.circular(20.0),
+        ),
+        border: Border.all(color: const Color(0xff9b9b9b), width: 1.0),
+      ),
+      child: ClipRRect(
+        borderRadius: const BorderRadius.only(
+          topLeft: Radius.circular(30.0),
+          topRight: Radius.circular(30.0),
+        ),
+        child: BottomNavigationBar(
+          backgroundColor: Colors.white,
+          selectedItemColor: const Color(0xFFFF8210),
+          unselectedItemColor: Colors.grey,
+          showSelectedLabels: false,
+          showUnselectedLabels: false,
+          currentIndex: _selectedIndex,
+          onTap: (index) => setState(() => _selectedIndex = index),
+          items: [
+            BottomNavigationBarItem(
+              icon: Image.asset('images/HomeIcon.png', width: 30, height: 30),
+              label: "",
             ),
-
-            Expanded(
-              child: SizedBox(
-                height: 200.0, // Fixed height for the Expanded widget
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                  children: [
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                      children: [
-                        Padding(
-                          padding: EdgeInsets.only(
-                            top: 8,
-                          ), // Adjust margin as needed
-                          child: RecipeCard(
-                            image: 'images/FluffyPancakes.jpg',
-                            title: "Fluffy Pancakes",
-                            rating: "4.0",
-                            reviews: "12",
-                          ),
-                        ),
-                        Padding(
-                          padding: EdgeInsets.only(top: 8), // Apply same margin
-                          child: RecipeCard(
-                            image: 'images/ChocolateChipCookies.jpg',
-                            title: "Chocolate Chip Cookies",
-                            rating: "3.7",
-                            reviews: "2",
-                          ),
-                        ),
-                      ],
-                    ),
-
-                    // Add space below the Row using SizedBox
-                    SizedBox(height: 10), // Adjust the height as needed
-                  ],
-                ),
+            BottomNavigationBarItem(
+              icon: Image.asset(
+                'images/ExploreIcon.png',
+                width: 30,
+                height: 30,
               ),
+              label: "",
+            ),
+            BottomNavigationBarItem(
+              icon: Image.asset(
+                'images/MyProfileIcon.png',
+                width: 30,
+                height: 30,
+              ),
+              label: "",
             ),
           ],
         ),
       ),
-
-      // Bottom Navigation Bar
-      bottomNavigationBar: Container(
-        decoration: BoxDecoration(
-          borderRadius: BorderRadius.only(
-            topLeft: Radius.circular(20.0),
-            topRight: Radius.circular(20.0),
-          ),
-          border: Border.all(color: Color(0xff9b9b9b), width: 1.0),
-        ),
-        child: ClipRRect(
-          borderRadius: BorderRadius.only(
-            topLeft: Radius.circular(30.0),
-            topRight: Radius.circular(30.0),
-          ),
-
-          child: BottomNavigationBar(
-            backgroundColor: const Color.fromARGB(255, 255, 255, 255),
-            selectedItemColor: Color(0xFFFF8210),
-            unselectedItemColor: Colors.grey,
-            showSelectedLabels: false,
-            showUnselectedLabels: false,
-            currentIndex: _selectedIndex,
-            onTap: (index) => setState(() => _selectedIndex = index),
-            items: [
-              BottomNavigationBarItem(
-                icon: Image.asset('images/HomeIcon.png', width: 30, height: 30),
-                label: "",
-              ),
-              BottomNavigationBarItem(
-                icon: Image.asset(
-                  'images/ExploreIcon.png',
-                  width: 30,
-                  height: 30,
-                ),
-                label: "",
-              ),
-              BottomNavigationBarItem(
-                icon: Image.asset(
-                  'images/MyProfileIcon.png',
-                  width: 30,
-                  height: 30,
-                ),
-                label: "",
-              ),
-            ],
-          ),
-        ),
-      ),
-      backgroundColor: Colors.white,
     );
   }
 }

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import '../widgets/recipe_card.dart';
 import '../models/recipe_model.dart';
 import '../services/recipe_service.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 
 class DiscoverPage extends StatefulWidget {
   final Set<String> selectedIngredientIds;
@@ -14,9 +15,11 @@ class DiscoverPage extends StatefulWidget {
 }
 
 class _DiscoverPageState extends State<DiscoverPage> {
-  Set<String> selectedCategories = Set();
+  Set<String> selectedCategories = {};
   List<Recipe> allRecipes = [];
   List<Recipe> filteredRecipes = [];
+  List<String> savedRecipeIds = [];
+
   bool isLoading = true;
   String errorMessage = '';
 
@@ -31,7 +34,6 @@ class _DiscoverPageState extends State<DiscoverPage> {
   @override
   void didUpdateWidget(DiscoverPage oldWidget) {
     super.didUpdateWidget(oldWidget);
-    // If the selected ingredients changed, update recipes
     if (oldWidget.selectedIngredientIds != widget.selectedIngredientIds) {
       _filterRecipes();
     }
@@ -44,15 +46,18 @@ class _DiscoverPageState extends State<DiscoverPage> {
         errorMessage = '';
       });
 
-      // Load recipes filtered by selected ingredients
-      allRecipes = await _recipeService.getRecipesWithIngredients(
+      final userId = FirebaseAuth.instance.currentUser?.uid;
+      if (userId == null) return;
+
+      final ingredientsRecipes = await _recipeService.getRecipesWithIngredients(
         widget.selectedIngredientIds,
       );
-
-      // Apply category filters if any
-      _filterRecipes();
+      final savedIds = await _recipeService.getSavedRecipeIds(userId);
 
       setState(() {
+        allRecipes = ingredientsRecipes;
+        savedRecipeIds = savedIds;
+        _filterRecipes();
         isLoading = false;
       });
     } catch (e) {
@@ -65,22 +70,18 @@ class _DiscoverPageState extends State<DiscoverPage> {
 
   void _filterRecipes() {
     if (selectedCategories.isEmpty) {
-      // No category filters, just filter by ingredients
       filteredRecipes = allRecipes;
     } else {
-      // Filter by both ingredients and categories
       filteredRecipes =
           allRecipes.where((recipe) {
             return selectedCategories.contains(recipe.category);
           }).toList();
     }
-
     setState(() {});
   }
 
   @override
   Widget build(BuildContext context) {
-    // Count recipes that can be made
     final int recipeCount =
         filteredRecipes.where((recipe) {
           final recipeIngredientIds =
@@ -108,25 +109,22 @@ class _DiscoverPageState extends State<DiscoverPage> {
                 ),
               ),
             ),
-            SizedBox(height: 16),
-            Text(
+            const SizedBox(height: 16),
+            const Text(
               "Category",
               style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
             ),
-            SizedBox(height: 10),
+            const SizedBox(height: 10),
             _buildCategoryFilters(),
-            SizedBox(height: 16),
+            const SizedBox(height: 16),
 
-            // Error message
             if (errorMessage.isNotEmpty)
               Center(
                 child: Text(errorMessage, style: TextStyle(color: Colors.red)),
               ),
 
-            // Loading indicator
-            if (isLoading) Center(child: CircularProgressIndicator()),
+            if (isLoading) const Center(child: CircularProgressIndicator()),
 
-            // No recipes message
             if (!isLoading && filteredRecipes.isEmpty)
               Center(
                 child: Padding(
@@ -139,7 +137,6 @@ class _DiscoverPageState extends State<DiscoverPage> {
                 ),
               ),
 
-            // Recipe list
             if (!isLoading && filteredRecipes.isNotEmpty) _buildRecipeList(),
           ],
         ),
@@ -154,29 +151,24 @@ class _DiscoverPageState extends State<DiscoverPage> {
       spacing: 8.0,
       children:
           categories.map((category) {
+            final isSelected = selectedCategories.contains(category);
             return ElevatedButton(
               onPressed: () {
                 setState(() {
-                  if (selectedCategories.contains(category)) {
-                    selectedCategories.remove(category);
-                  } else {
-                    selectedCategories.add(category);
-                  }
+                  isSelected
+                      ? selectedCategories.remove(category)
+                      : selectedCategories.add(category);
                   _filterRecipes();
                 });
               },
-              child: Text(category),
               style: ElevatedButton.styleFrom(
                 backgroundColor:
-                    selectedCategories.contains(category)
-                        ? Color(0xFFFF8210)
-                        : Colors.white,
+                    isSelected ? const Color(0xFFFF8210) : Colors.white,
                 foregroundColor:
-                    selectedCategories.contains(category)
-                        ? Colors.white
-                        : Color(0xFFFF8210),
-                side: BorderSide(color: Color(0xFFFF8210)),
+                    isSelected ? Colors.white : const Color(0xFFFF8210),
+                side: const BorderSide(color: Color(0xFFFF8210)),
               ),
+              child: Text(category),
             );
           }).toList(),
     );
@@ -185,37 +177,49 @@ class _DiscoverPageState extends State<DiscoverPage> {
   Widget _buildRecipeList() {
     return ListView.builder(
       shrinkWrap: true,
-      physics: NeverScrollableScrollPhysics(),
+      physics: const NeverScrollableScrollPhysics(),
       itemCount: filteredRecipes.length,
       itemBuilder: (context, index) {
         final recipe = filteredRecipes[index];
 
-        // Check if user can make this recipe with selected ingredients
         final recipeIngredientIds =
             recipe.ingredients.map((i) => i.ingredientId).toSet();
         final canMake = recipeIngredientIds.every(
           (id) => widget.selectedIngredientIds.contains(id),
         );
-
-        // Calculate how many ingredients are missing
         final missingIngredients =
-            recipeIngredientIds
-                .where((id) => !widget.selectedIngredientIds.contains(id))
-                .length;
+            recipeIngredientIds.difference(widget.selectedIngredientIds).length;
+
+        final isSaved = savedRecipeIds.contains(recipe.id);
 
         return Padding(
           padding: const EdgeInsets.only(bottom: 16.0),
           child: RecipeCard(
             imageUrl: recipe.imageUrl ?? "assets/placeholder-recipe.png",
             title: recipe.name,
-            author:
-                recipe
-                    .author, // You might want to add author name to Recipe model
-            rating: 4.0, // You might want to add rating to Recipe model
-            reviews: 12, // You might want to add reviews to Recipe model
+            author: recipe.author,
+            rating: 4.0,
+            reviews: 12,
             canMake: canMake,
             missingIngredients: missingIngredients,
-            recipe: recipe, // Pass the full recipe object for navigation
+            recipe: recipe,
+            isSaved: isSaved,
+            onToggleSave: () async {
+              final userId = FirebaseAuth.instance.currentUser?.uid;
+              if (userId == null) return;
+
+              await _recipeService.toggleSaveRecipe(
+                userId: userId,
+                recipeId: recipe.id!,
+                isAlreadySaved: isSaved,
+              );
+
+              setState(() {
+                isSaved
+                    ? savedRecipeIds.remove(recipe.id)
+                    : savedRecipeIds.add(recipe.id!);
+              });
+            },
           ),
         );
       },
