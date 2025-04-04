@@ -1,5 +1,6 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
+import '../screens/saved_recipes_page.dart';
 import '../Components/RecipeCard.dart';
 import '../models/user_model.dart';
 
@@ -27,25 +28,18 @@ class _UserProfilePageState extends State<UserProfilePage> {
 
   Future<void> _loadUserData() async {
     try {
-      // First try to get user by document ID
-      final userDoc =
-          await FirebaseFirestore.instance
-              .collection('users')
-              .doc(widget.userId)
-              .get();
+      final userDoc = await FirebaseFirestore.instance.collection('users').doc(widget.userId).get();
 
       if (userDoc.exists) {
         setState(() {
           user = UserModel.fromJson(userDoc.data()!);
         });
       } else {
-        // If not found by ID, try to find by email
-        final userByEmail =
-            await FirebaseFirestore.instance
-                .collection('users')
-                .where('email', isEqualTo: widget.userId)
-                .limit(1)
-                .get();
+        final userByEmail = await FirebaseFirestore.instance
+            .collection('users')
+            .where('email', isEqualTo: widget.userId)
+            .limit(1)
+            .get();
 
         if (userByEmail.docs.isNotEmpty) {
           setState(() {
@@ -54,20 +48,15 @@ class _UserProfilePageState extends State<UserProfilePage> {
         }
       }
 
-      // Load user's recipes if we found the user
       if (user != null) {
-        final recipesSnapshot =
-            await FirebaseFirestore.instance
-                .collection('recipes')
-                .where('userId', isEqualTo: user!.id)
-                .limit(2)
-                .get();
+        final recipesSnapshot = await FirebaseFirestore.instance
+            .collection('recipes')
+            .where('userId', isEqualTo: user!.id)
+            .limit(2)
+            .get();
 
         setState(() {
-          userRecipes =
-              recipesSnapshot.docs
-                  .map((doc) => doc.data() as Map<String, dynamic>)
-                  .toList();
+          userRecipes = recipesSnapshot.docs.map((doc) => doc.data() as Map<String, dynamic>).toList();
         });
       }
     } catch (e) {
@@ -113,26 +102,23 @@ class _UserProfilePageState extends State<UserProfilePage> {
           child: Container(color: const Color(0xFFFF8210), height: 2),
         ),
       ),
+      backgroundColor: Colors.white,
       body: Padding(
         padding: const EdgeInsets.all(16),
         child: Column(
           children: [
+            // Profile Info
             Expanded(
               child: Column(
                 children: [
-                  // Profile Image
                   CircleAvatar(
                     radius: 70,
-                    backgroundImage:
-                        user!.additionalInfo?['photoUrl'] != null
-                            ? NetworkImage(user!.additionalInfo!['photoUrl'])
-                            : const AssetImage('images/ProfileImage.png')
-                                as ImageProvider,
+                    backgroundImage: user!.additionalInfo?['photoUrl'] != null
+                        ? NetworkImage(user!.additionalInfo!['photoUrl'])
+                        : const AssetImage('images/ProfileImage.png') as ImageProvider,
                     backgroundColor: Colors.transparent,
                   ),
                   const SizedBox(height: 10),
-
-                  // Username
                   Text(
                     user!.username,
                     style: const TextStyle(
@@ -142,15 +128,11 @@ class _UserProfilePageState extends State<UserProfilePage> {
                     ),
                   ),
                   const SizedBox(height: 5),
-
-                  // Email
                   Text(
                     user!.email,
                     style: const TextStyle(color: Colors.grey, fontSize: 16),
                   ),
-                  const SizedBox(height: 5),
-
-                  // Followers & Following Section
+                  const SizedBox(height: 10),
                   Row(
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
@@ -163,11 +145,7 @@ class _UserProfilePageState extends State<UserProfilePage> {
                         ),
                       ),
                       const SizedBox(width: 15),
-                      Container(
-                        height: 20,
-                        width: 2,
-                        color: const Color(0xff0eddd2),
-                      ),
+                      Container(height: 20, width: 2, color: const Color(0xff0eddd2)),
                       const SizedBox(width: 15),
                       Text(
                         "${user!.additionalInfo?['followingCount'] ?? 0} following",
@@ -179,18 +157,12 @@ class _UserProfilePageState extends State<UserProfilePage> {
                       ),
                     ],
                   ),
-                  const SizedBox(height: 20),
-
-                  // Follow Button
+                  const SizedBox(height: 10),
                   OutlinedButton(
                     onPressed: () => setState(() => isFollowed = !isFollowed),
                     style: OutlinedButton.styleFrom(
-                      side: const BorderSide(
-                        color: Color(0xff0eddd2),
-                        width: 2,
-                      ),
-                      backgroundColor:
-                          isFollowed ? Colors.white : const Color(0xff0eddd2),
+                      side: const BorderSide(color: Color(0xff0eddd2), width: 2),
+                      backgroundColor: isFollowed ? Colors.white : const Color(0xff0eddd2),
                     ),
                     child: Text(
                       isFollowed ? "FOLLOWING" : "FOLLOW",
@@ -198,8 +170,7 @@ class _UserProfilePageState extends State<UserProfilePage> {
                         fontFamily: 'AlbertSans',
                         fontWeight: FontWeight.w500,
                         fontSize: 18,
-                        color:
-                            isFollowed ? const Color(0xff0eddd2) : Colors.white,
+                        color: isFollowed ? const Color(0xff0eddd2) : Colors.white,
                       ),
                     ),
                   ),
@@ -207,42 +178,64 @@ class _UserProfilePageState extends State<UserProfilePage> {
               ),
             ),
 
-            // User's Recipes
+            // Saved Recipes UI + User's Recipe Cards
             Expanded(
-              child:
-                  userRecipes.isEmpty
-                      ? const Center(child: Text('No recipes found'))
-                      : Column(
-                        children: [
-                          Row(
-                            mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                            children:
-                                userRecipes
-                                    .map(
-                                      (recipe) => Padding(
-                                        padding: const EdgeInsets.only(top: 8),
-                                        child: RecipeCard(
-                                          image:
-                                              recipe['imageUrl'] ??
-                                              'images/default_recipe.jpg',
-                                          title:
-                                              recipe['name'] ??
-                                              'Untitled Recipe',
-                                          rating:
-                                              recipe['rating']?.toString() ??
-                                              "0",
-                                          reviews:
-                                              recipe['reviewCount']
-                                                  ?.toString() ??
-                                              "0",
-                                        ),
-                                      ),
-                                    )
-                                    .toList(),
-                          ),
-                          const SizedBox(height: 10),
-                        ],
+              child: Column(
+                children: [
+                  const Text(
+                    "Your Saved Recipes",
+                    style: TextStyle(
+                      fontFamily: 'AlbertSans',
+                      fontSize: 20,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                  ElevatedButton.icon(
+                    onPressed: () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(builder: (context) => const SavedRecipesPage()),
+                      );
+                    },
+                    icon: const Icon(Icons.favorite_border),
+                    label: const Text("View Saved Recipes"),
+                    style: ElevatedButton.styleFrom(
+                      foregroundColor: Colors.white,
+                      backgroundColor: const Color(0xFFFF8210),
+                      padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+                      textStyle: const TextStyle(
+                        fontSize: 16,
+                        fontFamily: 'AlbertSans',
+                        fontWeight: FontWeight.w600,
                       ),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+                    ),
+                  ),
+                  const Text(
+                    "Access all your favourites in one place!",
+                    style: TextStyle(
+                      fontSize: 14,
+                      fontFamily: 'AlbertSans',
+                      color: Colors.grey,
+                    ),
+                  ),
+                  const SizedBox(height: 10),
+                  if (userRecipes.isEmpty)
+                    const Text("No recipes found")
+                  else
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                      children: userRecipes.map((recipe) {
+                        return RecipeCard(
+                          image: recipe['imageUrl'] ?? 'images/default_recipe.jpg',
+                          title: recipe['name'] ?? 'Untitled Recipe',
+                          rating: recipe['rating']?.toString() ?? "0",
+                          reviews: recipe['reviewCount']?.toString() ?? "0",
+                        );
+                      }).toList(),
+                    ),
+                ],
+              ),
             ),
           ],
         ),
@@ -268,15 +261,23 @@ class _UserProfilePageState extends State<UserProfilePage> {
             showUnselectedLabels: false,
             currentIndex: _selectedIndex,
             onTap: (index) => setState(() => _selectedIndex = index),
-            items: const [
-              BottomNavigationBarItem(icon: Icon(Icons.home), label: ""),
-              BottomNavigationBarItem(icon: Icon(Icons.search), label: ""),
-              BottomNavigationBarItem(icon: Icon(Icons.person), label: ""),
+            items: [
+              BottomNavigationBarItem(
+                icon: Image.asset('images/HomeIcon.png', width: 30, height: 30),
+                label: "",
+              ),
+              BottomNavigationBarItem(
+                icon: Image.asset('images/ExploreIcon.png', width: 30, height: 30),
+                label: "",
+              ),
+              BottomNavigationBarItem(
+                icon: Image.asset('images/MyProfileIcon.png', width: 30, height: 30),
+                label: "",
+              ),
             ],
           ),
         ),
       ),
-      backgroundColor: Colors.white,
     );
   }
 }

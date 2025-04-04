@@ -4,7 +4,7 @@ import '../models/recipe_model.dart';
 class RecipeService {
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
 
-  // Fetch all recipes from Firestore
+  // Fetch all recipes
   Future<List<Recipe>> getAllRecipes() async {
     final snapshot = await _firestore.collection('recipes').get();
     return snapshot.docs
@@ -24,25 +24,19 @@ class RecipeService {
     final recipes =
         snapshot.docs.map((doc) => Recipe.fromMap(doc.data(), doc.id)).toList();
 
-    // Calculate which recipes can be made with selected ingredients
     final recipesWithAvailability =
         recipes.map((recipe) {
-          // Check each ingredient in the recipe
           final recipeIngredientIds =
               recipe.ingredients.map((i) => i.ingredientId).toSet();
 
-          // Count how many ingredients from the recipe we have
           final matchedIngredients = recipeIngredientIds.intersection(
             ingredientIds,
           );
-
-          // Calculate the percentage of ingredients we have
           final availabilityPercentage =
               recipeIngredientIds.isEmpty
                   ? 0.0
                   : matchedIngredients.length / recipeIngredientIds.length;
 
-          // Mark if we can make this recipe (have all ingredients)
           final canMake =
               recipeIngredientIds.isNotEmpty &&
               recipeIngredientIds.every((id) => ingredientIds.contains(id));
@@ -56,12 +50,10 @@ class RecipeService {
           };
         }).toList();
 
-    // Sort by ability to make and then by availability percentage
     recipesWithAvailability.sort((a, b) {
       if (a['canMake'] != b['canMake']) {
-        return a['canMake'] != null ? -1 : 1; // Recipes we can make first
+        return a['canMake'] != null ? -1 : 1;
       }
-      // Then by availability percentage (descending)
       return (b['availabilityPercentage'] as double).compareTo(
         a['availabilityPercentage'] as double,
       );
@@ -95,5 +87,31 @@ class RecipeService {
     }
 
     return result;
+  }
+
+  // NEW 🔥: Toggle save or unsave a recipe
+  Future<void> toggleSaveRecipe({
+    required String userId,
+    required String recipeId,
+    required bool isAlreadySaved,
+  }) async {
+    final userRef = _firestore.collection('users').doc(userId);
+
+    await userRef.update({
+      'savedRecipes':
+          isAlreadySaved
+              ? FieldValue.arrayRemove([recipeId])
+              : FieldValue.arrayUnion([recipeId]),
+    });
+  }
+
+  // NEW 💡: Get saved recipe IDs for a user
+  Future<List<String>> getSavedRecipeIds(String userId) async {
+    final snapshot = await _firestore.collection('users').doc(userId).get();
+    final data = snapshot.data();
+    if (data != null && data.containsKey('savedRecipes')) {
+      return List<String>.from(data['savedRecipes']);
+    }
+    return [];
   }
 }

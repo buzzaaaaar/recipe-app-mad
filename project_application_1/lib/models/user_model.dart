@@ -4,6 +4,7 @@ class UserModel {
   final String email;
   final String createdAt;
   final Map<String, dynamic>? additionalInfo;
+  final List<String> savedRecipes;
 
   UserModel({
     required this.id,
@@ -11,9 +12,9 @@ class UserModel {
     required this.email,
     required this.createdAt,
     this.additionalInfo,
+    this.savedRecipes = const [], // default empty if not present
   });
 
-  // Convert model to JSON for storing in Firestore
   Map<String, dynamic> toJson() {
     return {
       'id': id,
@@ -21,10 +22,10 @@ class UserModel {
       'email': email,
       'createdAt': createdAt,
       'additionalInfo': additionalInfo ?? {},
+      'savedRecipes': savedRecipes,
     };
   }
 
-  // Create model from Firestore document
   factory UserModel.fromJson(Map<String, dynamic> json) {
     return UserModel(
       id: json['id'] ?? '',
@@ -32,6 +33,7 @@ class UserModel {
       email: json['email'] ?? '',
       createdAt: json['createdAt'] ?? '',
       additionalInfo: json['additionalInfo'],
+      savedRecipes: List<String>.from(json['savedRecipes'] ?? []),
     );
   }
 }
