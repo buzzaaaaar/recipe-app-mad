@@ -2,16 +2,16 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 
 class Recipe {
   final String? id;
-  final String name;
-  final String category;
-  final String prepTime;
-  final String cookTime;
-  final int servings;
-  final String? imageUrl;
-  final String? videoUrl;
-  final List<RecipeIngredient> ingredients;
-  final List<String> directions;
-  final Map<String, dynamic> nutritionalInfo;
+  String name;
+  String category;
+  String prepTime;
+  String cookTime;
+  int servings;
+  String? imageUrl;
+  String? videoUrl;
+  List<RecipeIngredient> ingredients;
+  List<String> directions;
+  Map<String, dynamic> nutritionalInfo;
   final String userId;
   final String author;
   final DateTime createdAt;
@@ -76,11 +76,13 @@ class Recipe {
 }
 
 class RecipeIngredient {
+  final String name;
   final String ingredientId;
   final double amount;
   final String unit;
 
   RecipeIngredient({
+    required this.name,
     required this.ingredientId,
     required this.amount,
     required this.unit,
@@ -90,7 +92,7 @@ class RecipeIngredient {
     return RecipeIngredient(
       ingredientId: data['ingredientId'] ?? '',
       amount: (data['amount'] as num).toDouble(),
-      unit: data['unit'] ?? '',
+      unit: data['unit'] ?? '', name: data['name'] ?? '',
     );
   }
 

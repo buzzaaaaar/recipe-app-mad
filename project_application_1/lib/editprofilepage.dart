@@ -1,42 +1,102 @@
+import 'package:firebase_storage/firebase_storage.dart';
 import 'package:flutter/material.dart';
-
-void main() {
-  runApp(const MyApp());
-}
-
-class MyApp extends StatelessWidget {
-  const MyApp({super.key});
-
-  @override
-  Widget build(BuildContext context) {
-    return MaterialApp(
-      debugShowCheckedModeBanner: false,
-      home: EditProfilePage(),
-    );
-  }
-}
+import 'package:firebase_auth/firebase_auth.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:image_picker/image_picker.dart';
+import 'dart:io';
 
 class EditProfilePage extends StatefulWidget {
-  const EditProfilePage({super.key});
+  final Map<String, dynamic> userData;
+  final VoidCallback onProfileUpdated;
+
+  const EditProfilePage({
+    super.key,
+    required this.userData,
+    required this.onProfileUpdated,
+  });
 
   @override
   EditProfilePageState createState() => EditProfilePageState();
 }
 
 class EditProfilePageState extends State<EditProfilePage> {
-  int selectedBottomIndex = 0;
-  String? _imagePath = 'assets/TestProfilePicture.jpg'; // Sample picture
-  String _username = 'ThisIsJohnDoe123';
-  String _email = 'johndoe123@gmail.com';
-  String _password = 'password123';
-  String _confirmPassword = 'password123';
-
   final _formKey = GlobalKey<FormState>();
+  late String _username;
+  late String _email;
+  File? _imageFile;
+  bool _isLoading = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _username = widget.userData['username'] ?? '';
+    _email = widget.userData['email'] ?? FirebaseAuth.instance.currentUser?.email ?? '';
+  }
+
+  Future<void> _pickImage() async {
+    final pickedFile = await ImagePicker().pickImage(source: ImageSource.gallery);
+    if (pickedFile != null) {
+      setState(() {
+        _imageFile = File(pickedFile.path);
+      });
+    }
+  }
+
+  Future<void> _saveProfile() async {
+    if (!_formKey.currentState!.validate()) return;
+
+    setState(() {
+      _isLoading = true;
+    });
+
+    try {
+      final user = FirebaseAuth.instance.currentUser;
+      if (user == null) return;
+
+      // Upload image if new one was selected
+      String? imageUrl;
+      if (_imageFile != null) {
+        final ref = FirebaseStorage.instance
+            .ref()
+            .child('profile_images/${user.uid}');
+        await ref.putFile(_imageFile!);
+        imageUrl = await ref.getDownloadURL();
+      }
+
+      // Update user data in Firestore
+      await FirebaseFirestore.instance
+          .collection('users')
+          .doc(user.uid)
+          .update({
+            'username': _username,
+            'email': _email,
+            if (imageUrl != null) 'profileImage': imageUrl,
+          });
+
+      // Update email in Firebase Auth if changed
+      if (_email != user.email) {
+        await user.updateEmail(_email);
+      }
+
+      widget.onProfileUpdated();
+      Navigator.pop(context);
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Error updating profile: $e')),
+      );
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+        });
+      }
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFF0EDDD2), // Background is Jade
+      backgroundColor: const Color(0xFF0EDDD2),
       appBar: AppBar(
         backgroundColor: Colors.white,
         title: Center(
@@ -49,14 +109,14 @@ class EditProfilePageState extends State<EditProfilePage> {
             ),
           ),
         ),
+        leading: IconButton(
+          icon: Icon(Icons.arrow_back, color: Color(0xFFFF8210)),
+          onPressed: () => Navigator.pop(context),
+        ),
       ),
       body: Column(
         children: [
-          Container(
-            height: 2,
-            // ignore: deprecated_member_use
-            color: const Color.fromARGB(255, 234, 113, 15).withOpacity(0.2),
-          ),
+          Container(height: 2, color: Color(0xFFFF8210).withOpacity(0.2)),
           Expanded(
             child: SingleChildScrollView(
               child: Center(
@@ -64,7 +124,7 @@ class EditProfilePageState extends State<EditProfilePage> {
                   width: MediaQuery.of(context).size.width * 0.9,
                   margin: const EdgeInsets.only(top: 32, bottom: 16),
                   decoration: BoxDecoration(
-                    color: Colors.white, // Content box remains white
+                    color: Colors.white,
                     borderRadius: BorderRadius.circular(20),
                   ),
                   padding: const EdgeInsets.all(16),
@@ -83,13 +143,7 @@ class EditProfilePageState extends State<EditProfilePage> {
                         ),
                         const SizedBox(height: 8),
                         GestureDetector(
-                          onTap: () {
-                            if (_imagePath != null) {
-                              _showRemoveImageDialog();
-                            } else {
-                              debugPrint("Upload profile picture here");
-                            }
-                          },
+                          onTap: _pickImage,
                           child: Container(
                             width: double.infinity,
                             height: 200,
@@ -97,19 +151,31 @@ class EditProfilePageState extends State<EditProfilePage> {
                               color: Colors.grey[200],
                               borderRadius: BorderRadius.circular(8),
                             ),
-                            child:
-                                _imagePath != null
-                                    ? Image.asset(
-                                      _imagePath!,
-                                      fit: BoxFit.cover,
-                                    )
-                                    : const Center(
-                                      child: Icon(
-                                        Icons.person,
-                                        size: 50,
-                                        color: Colors.grey,
+                            child: _imageFile != null
+                                ? ClipRRect(
+                                    borderRadius: BorderRadius.circular(8),
+                                    child: Image.file(_imageFile!, fit: BoxFit.cover),
+                                  )
+                                : widget.userData['profileImage'] != null
+                                    ? ClipRRect(
+                                        borderRadius: BorderRadius.circular(8),
+                                        child: Image.network(
+                                          widget.userData['profileImage'],
+                                          fit: BoxFit.cover,
+                                          errorBuilder: (context, error, stackTrace) => Icon(
+                                            Icons.person,
+                                            size: 50,
+                                            color: Colors.grey,
+                                          ),
+                                        ),
+                                      )
+                                    : Center(
+                                        child: Icon(
+                                          Icons.person,
+                                          size: 50,
+                                          color: Colors.grey,
+                                        ),
                                       ),
-                                    ),
                           ),
                         ),
                         const SizedBox(height: 16),
@@ -124,45 +190,26 @@ class EditProfilePageState extends State<EditProfilePage> {
                         const SizedBox(height: 8),
                         TextFormField(
                           initialValue: _username,
-                          style: const TextStyle(fontWeight: FontWeight.w600),
                           decoration: InputDecoration(
                             border: OutlineInputBorder(
                               borderRadius: BorderRadius.circular(8),
-                              borderSide: BorderSide(
-                                color: const Color(0xFFFFDB4F),
-                              ),
-                            ),
-                            focusedBorder: OutlineInputBorder(
-                              borderRadius: BorderRadius.circular(8),
-                              borderSide: BorderSide(
-                                color: const Color(0xFFFFDB4F),
-                              ),
-                            ),
-                            enabledBorder: OutlineInputBorder(
-                              borderRadius: BorderRadius.circular(8),
-                              borderSide: BorderSide(
-                                color: const Color(0xFFFFDB4F),
-                              ),
+                              borderSide: BorderSide(color: const Color(0xFFFFDB4F)),
                             ),
                           ),
                           validator: (value) {
                             if (value == null || value.isEmpty) {
-                              return 'Please enter your username';
+                              return 'Please enter a username';
                             }
                             if (value.length < 3) {
                               return 'Username must be at least 3 characters';
                             }
                             return null;
                           },
-                          onChanged: (value) {
-                            setState(() {
-                              _username = value;
-                            });
-                          },
+                          onChanged: (value) => _username = value,
                         ),
                         const SizedBox(height: 16),
                         Text(
-                          "EMAIL ADDRESS",
+                          "EMAIL",
                           style: TextStyle(
                             fontSize: 18,
                             fontWeight: FontWeight.bold,
@@ -172,151 +219,38 @@ class EditProfilePageState extends State<EditProfilePage> {
                         const SizedBox(height: 8),
                         TextFormField(
                           initialValue: _email,
-                          style: const TextStyle(fontWeight: FontWeight.w600),
+                          keyboardType: TextInputType.emailAddress,
                           decoration: InputDecoration(
                             border: OutlineInputBorder(
                               borderRadius: BorderRadius.circular(8),
-                              borderSide: BorderSide(
-                                color: const Color(0xFFFFDB4F),
-                              ),
-                            ),
-                            focusedBorder: OutlineInputBorder(
-                              borderRadius: BorderRadius.circular(8),
-                              borderSide: BorderSide(
-                                color: const Color(0xFFFFDB4F),
-                              ),
-                            ),
-                            enabledBorder: OutlineInputBorder(
-                              borderRadius: BorderRadius.circular(8),
-                              borderSide: BorderSide(
-                                color: const Color(0xFFFFDB4F),
-                              ),
+                              borderSide: BorderSide(color: const Color(0xFFFFDB4F)),
                             ),
                           ),
                           validator: (value) {
                             if (value == null || value.isEmpty) {
-                              return 'Please enter your email';
+                              return 'Please enter an email';
                             }
                             if (!value.contains('@')) {
-                              return 'Please enter a valid email address';
+                              return 'Please enter a valid email';
                             }
                             return null;
                           },
-                          onChanged: (value) {
-                            setState(() {
-                              _email = value;
-                            });
-                          },
-                        ),
-                        const SizedBox(height: 16),
-                        Text(
-                          "PASSWORD",
-                          style: TextStyle(
-                            fontSize: 18,
-                            fontWeight: FontWeight.bold,
-                            color: const Color(0xFFFFDB4F),
-                          ),
-                        ),
-                        const SizedBox(height: 8),
-                        TextFormField(
-                          initialValue: _password,
-                          style: const TextStyle(fontWeight: FontWeight.w600),
-                          obscureText: true,
-                          decoration: InputDecoration(
-                            border: OutlineInputBorder(
-                              borderRadius: BorderRadius.circular(8),
-                              borderSide: BorderSide(
-                                color: const Color(0xFFFFDB4F),
-                              ),
-                            ),
-                            focusedBorder: OutlineInputBorder(
-                              borderRadius: BorderRadius.circular(8),
-                              borderSide: BorderSide(
-                                color: const Color(0xFFFFDB4F),
-                              ),
-                            ),
-                            enabledBorder: OutlineInputBorder(
-                              borderRadius: BorderRadius.circular(8),
-                              borderSide: BorderSide(
-                                color: const Color(0xFFFFDB4F),
-                              ),
-                            ),
-                          ),
-                          validator: (value) {
-                            if (value == null || value.isEmpty) {
-                              return 'Please enter your password';
-                            }
-                            if (value.length < 6) {
-                              return 'Password must be at least 6 characters';
-                            }
-                            return null;
-                          },
-                          onChanged: (value) {
-                            setState(() {
-                              _password = value;
-                            });
-                          },
-                        ),
-                        const SizedBox(height: 16),
-                        Text(
-                          "CONFIRM PASSWORD",
-                          style: TextStyle(
-                            fontSize: 18,
-                            fontWeight: FontWeight.bold,
-                            color: const Color(0xFFFFDB4F),
-                          ),
-                        ),
-                        const SizedBox(height: 8),
-                        TextFormField(
-                          initialValue: _confirmPassword,
-                          style: const TextStyle(fontWeight: FontWeight.w600),
-                          obscureText: true,
-                          decoration: InputDecoration(
-                            border: OutlineInputBorder(
-                              borderRadius: BorderRadius.circular(8),
-                              borderSide: BorderSide(
-                                color: const Color(0xFFFFDB4F),
-                              ),
-                            ),
-                            focusedBorder: OutlineInputBorder(
-                              borderRadius: BorderRadius.circular(8),
-                              borderSide: BorderSide(
-                                color: const Color(0xFFFFDB4F),
-                              ),
-                            ),
-                            enabledBorder: OutlineInputBorder(
-                              borderRadius: BorderRadius.circular(8),
-                              borderSide: BorderSide(
-                                color: const Color(0xFFFFDB4F),
-                              ),
-                            ),
-                          ),
-                          validator: (value) {
-                            if (value == null || value.isEmpty) {
-                              return 'Please confirm your password';
-                            }
-                            if (value != _password) {
-                              return 'Passwords do not match';
-                            }
-                            return null;
-                          },
-                          onChanged: (value) {
-                            setState(() {
-                              _confirmPassword = value;
-                            });
-                          },
+                          onChanged: (value) => _email = value,
                         ),
                         const SizedBox(height: 32),
                         Row(
                           mainAxisAlignment: MainAxisAlignment.spaceEvenly,
                           children: [
-                            _buildButton("DISCARD", () {}),
-                            _buildButton("SAVE", () {
-                              if (_formKey.currentState!.validate()) {
-                                // Form is valid, perform save operation
-                                // You would typically save the data here
-                              }
-                            }),
+                            _buildButton(
+                              "CANCEL",
+                              () => Navigator.pop(context),
+                              color: Colors.grey,
+                            ),
+                            _buildButton(
+                              "SAVE",
+                              _saveProfile,
+                              isLoading: _isLoading,
+                            ),
                           ],
                         ),
                       ],
@@ -328,105 +262,29 @@ class EditProfilePageState extends State<EditProfilePage> {
           ),
         ],
       ),
-      bottomNavigationBar: _buildBottomNavBar(),
     );
   }
 
-  Widget _buildButton(String text, VoidCallback onPressed) {
+  Widget _buildButton(String text, VoidCallback onPressed, {bool isLoading = false, Color? color}) {
     return ElevatedButton(
-      onPressed: onPressed,
+      onPressed: isLoading ? null : onPressed,
       style: ElevatedButton.styleFrom(
-        backgroundColor: const Color(0xFFFF8210),
+        backgroundColor: color ?? const Color(0xFFFF8210),
         padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
       ),
-      child: Text(
-        text,
-        style: const TextStyle(fontSize: 18, color: Colors.white),
-      ),
-    );
-  }
-
-  void _showRemoveImageDialog() {
-    showDialog(
-      context: context,
-      builder: (BuildContext context) {
-        return AlertDialog(
-          title: const Text("Remove Profile Picture"),
-          content: const Text(
-            "Are you sure you want to remove your profile picture?",
-          ),
-          actions: [
-            TextButton(
-              onPressed: () {
-                Navigator.of(context).pop();
-              },
-              child: const Text("Cancel"),
-            ),
-            TextButton(
-              onPressed: () {
-                setState(() {
-                  _imagePath = null;
-                });
-                Navigator.of(context).pop();
-              },
-              child: const Text("Remove", style: TextStyle(color: Colors.red)),
-            ),
-          ],
-        );
-      },
-    );
-  }
-
-  Widget _buildBottomNavBar() {
-    return Container(
-      decoration: BoxDecoration(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(30)),
-      ),
-      child: ClipRRect(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(30)),
-        child: BottomNavigationBar(
-          currentIndex: selectedBottomIndex,
-          onTap: (index) {
-            setState(() {
-              selectedBottomIndex = index;
-            });
-          },
-          showSelectedLabels: false,
-          showUnselectedLabels: false,
-          items: [
-            BottomNavigationBarItem(
-              icon: Image.asset(
-                selectedBottomIndex == 0
-                    ? 'assets/HomeIconOnClick.png'
-                    : 'assets/home.png',
-                width: 24,
-                height: 24,
+      child: isLoading
+          ? SizedBox(
+              width: 20,
+              height: 20,
+              child: CircularProgressIndicator(
+                strokeWidth: 2,
+                color: Colors.white,
               ),
-              label: '',
+            )
+          : Text(
+              text,
+              style: const TextStyle(fontSize: 18, color: Colors.white),
             ),
-            BottomNavigationBarItem(
-              icon: Image.asset(
-                selectedBottomIndex == 1
-                    ? 'assets/ExploreIconOnClick.png'
-                    : 'assets/search.png',
-                width: 24,
-                height: 24,
-              ),
-              label: '',
-            ),
-            BottomNavigationBarItem(
-              icon: Image.asset(
-                selectedBottomIndex == 2
-                    ? 'assets/MyProfileIconOnClick.png'
-                    : 'assets/profile.png',
-                width: 24,
-                height: 24,
-              ),
-              label: '',
-            ),
-          ],
-        ),
-      ),
     );
   }
 }

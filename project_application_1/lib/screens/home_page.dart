@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
+import 'package:project_application_1/pages/profilePage.dart';
 import '../models/category.dart';
 import '../widgets/category_card.dart';
 import 'discover_page.dart';
 import '../services/recipe_service.dart';
+import '../screens/explore_page.dart';
 
 class HomePage extends StatefulWidget {
   @override
@@ -123,6 +125,24 @@ class _HomePageState extends State<HomePage> {
     });
   }
 
+  void _onItemTapped(int index) {
+    if (index == 2) {
+      Navigator.pushReplacement(
+        context,
+        MaterialPageRoute(builder: (context) => ProfilePage()),
+      );
+    } else if (index == 1) {
+      Navigator.pushReplacement(
+        context,
+        MaterialPageRoute(builder: (context) => ExplorePage()),
+      );
+    } else {
+      setState(() {
+        selectedBottomIndex = index;
+      });
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -214,11 +234,7 @@ class _HomePageState extends State<HomePage> {
           borderRadius: BorderRadius.vertical(top: Radius.circular(30)),
           child: BottomNavigationBar(
             currentIndex: selectedBottomIndex,
-            onTap: (index) {
-              setState(() {
-                selectedBottomIndex = index;
-              });
-            },
+            onTap: _onItemTapped,
             showSelectedLabels: false,
             showUnselectedLabels: false,
             items: [
