@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import '../services/recipe_service.dart';
 import '../models/recipe_model.dart';
-import '../widgets/recipe_card.dart';
+import '../Components/recipeCard2.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 
 class SavedRecipesPage extends StatefulWidget {
@@ -48,16 +48,26 @@ class _SavedRecipesPageState extends State<SavedRecipesPage> {
 
     await _recipeService.toggleSaveRecipe(
       userId: userId,
-      recipeId: recipe.id,
+      recipeId: recipe.id ?? '',
       isAlreadySaved: isAlreadySaved,
     );
 
     setState(() {
-      isAlreadySaved ? savedIds.remove(recipe.id) : savedIds.add(recipe.id);
-
+      isAlreadySaved ? savedIds.remove(recipe.id) : savedIds.add(recipe.id!);
       savedRecipes =
           savedRecipes.where((r) => savedIds.contains(r.id)).toList();
     });
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(
+          isAlreadySaved ? 'Removed from saved 💔' : 'Saved to your recipes 💾',
+        ),
+        duration: const Duration(seconds: 2),
+        behavior: SnackBarBehavior.floating,
+        backgroundColor: Colors.orange.shade400,
+      ),
+    );
   }
 
   @override
@@ -76,17 +86,19 @@ class _SavedRecipesPageState extends State<SavedRecipesPage> {
                 itemCount: savedRecipes.length,
                 itemBuilder: (context, index) {
                   final recipe = savedRecipes[index];
-                  return RecipeCard(
-                    imageUrl: recipe.imageUrl,
-                    title: recipe.title,
-                    author: recipe.author,
-                    rating: recipe.rating,
-                    reviews: recipe.reviews,
-                    canMake: true, // or calculate if needed
-                    missingIngredients: 0,
-                    recipe: recipe,
-                    isSaved: savedIds.contains(recipe.id),
-                    onToggleSave: () => _toggleSave(recipe),
+                  return Padding(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 16,
+                      vertical: 8,
+                    ),
+                    child: RecipeCard2(
+                      image: recipe.imageUrl ?? 'images/default_recipe.jpg',
+                      title: recipe.name,
+                      rating: "4.5", // Replace with real rating if needed
+                      reviews: "10",
+                      isSaved: savedIds.contains(recipe.id),
+                      onToggleSave: () => _toggleSave(recipe),
+                    ),
                   );
                 },
               ),

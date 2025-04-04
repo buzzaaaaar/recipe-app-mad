@@ -24,7 +24,6 @@ class _ProfilePageState extends State<ProfilePage> {
   Map<String, dynamic>? userData;
   bool isLoading = true;
 
-  // For recipes
   List<Recipe> createdRecipes = [];
   List<Recipe> savedRecipes = [];
   bool isLoadingRecipes = false;
@@ -44,7 +43,6 @@ class _ProfilePageState extends State<ProfilePage> {
                 .collection('users')
                 .doc(currentUser!.uid)
                 .get();
-
         if (userDoc.exists) {
           setState(() {
             userData = userDoc.data();
@@ -52,23 +50,16 @@ class _ProfilePageState extends State<ProfilePage> {
           await _fetchUserRecipes();
         }
       }
-      setState(() {
-        isLoading = false;
-      });
+      setState(() => isLoading = false);
     } catch (e) {
       print('Error fetching user data: $e');
-      setState(() {
-        isLoading = false;
-      });
+      setState(() => isLoading = false);
     }
   }
 
   Future<void> _fetchUserRecipes() async {
     if (currentUser == null) return;
-
-    setState(() {
-      isLoadingRecipes = true;
-    });
+    setState(() => isLoadingRecipes = true);
 
     try {
       final createdQuery =
@@ -104,13 +95,10 @@ class _ProfilePageState extends State<ProfilePage> {
       });
     } catch (e) {
       print('Error fetching recipes: $e');
-      setState(() {
-        isLoadingRecipes = false;
-      });
+      setState(() => isLoadingRecipes = false);
     }
   }
 
-  //popup for followers and following
   void _showPopup(String title) {
     showDialog(
       context: context,
@@ -143,7 +131,6 @@ class _ProfilePageState extends State<ProfilePage> {
                   ),
                 ),
                 SizedBox(height: 10),
-                // List of followers/following would go here
                 ListTile(
                   leading: CircleAvatar(
                     backgroundImage: NetworkImage(
@@ -160,7 +147,6 @@ class _ProfilePageState extends State<ProfilePage> {
     );
   }
 
-  //menu options
   void _showMenuOptions() {
     showMenu(
       context: context,
@@ -173,16 +159,9 @@ class _ProfilePageState extends State<ProfilePage> {
               fontFamily: 'AlbertSans',
               fontWeight: FontWeight.w500,
               fontSize: 20,
-              color:
-                  selectedOption == "Log out"
-                      ? Color(0xffff8210)
-                      : Color(0xff000000),
             ),
           ),
-          onTap: () async {
-            await FirebaseAuth.instance.signOut();
-            // Navigate to login page or handle logout
-          },
+          onTap: () async => await FirebaseAuth.instance.signOut(),
         ),
         PopupMenuItem(
           child: Text(
@@ -191,10 +170,6 @@ class _ProfilePageState extends State<ProfilePage> {
               fontFamily: 'AlbertSans',
               fontWeight: FontWeight.w500,
               fontSize: 20,
-              color:
-                  selectedOption == "Edit profile"
-                      ? Color(0xffff8210)
-                      : Color(0xff000000),
             ),
           ),
           onTap: () {
@@ -204,8 +179,7 @@ class _ProfilePageState extends State<ProfilePage> {
                 builder:
                     (context) => EditProfilePage(
                       userData: userData ?? {},
-                      onProfileUpdated:
-                          _fetchCurrentUser, // This will refresh the profile data
+                      onProfileUpdated: _fetchCurrentUser,
                     ),
               ),
             );
@@ -216,19 +190,17 @@ class _ProfilePageState extends State<ProfilePage> {
   }
 
   void _onItemTapped(int index) {
-    setState(() {
-      _selectedIndex = index;
-    });
+    setState(() => _selectedIndex = index);
 
     if (index == 0) {
       Navigator.pushReplacement(
         context,
-        MaterialPageRoute(builder: (context) => HomePage()),
+        MaterialPageRoute(builder: (_) => HomePage()),
       );
     } else if (index == 1) {
       Navigator.pushReplacement(
         context,
-        MaterialPageRoute(builder: (context) => ExplorePage()),
+        MaterialPageRoute(builder: (_) => ExplorePage()),
       );
     }
   }
@@ -246,12 +218,7 @@ class _ProfilePageState extends State<ProfilePage> {
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
               Text("Please sign in to view your profile"),
-              ElevatedButton(
-                onPressed: () {
-                  // Navigate to login page
-                },
-                child: Text("Sign In"),
-              ),
+              ElevatedButton(onPressed: () {}, child: Text("Sign In")),
             ],
           ),
         ),
@@ -270,21 +237,16 @@ class _ProfilePageState extends State<ProfilePage> {
             color: Color(0xFFFF8210),
           ),
         ),
-        backgroundColor: Color(0xffffffff),
+        backgroundColor: Colors.white,
         elevation: 0,
         bottom: PreferredSize(
           preferredSize: Size.fromHeight(2),
           child: Container(color: Color(0xFFFF8210), height: 2),
         ),
         actions: [
-          Row(
-            mainAxisAlignment: MainAxisAlignment.end,
-            children: [
-              IconButton(
-                icon: Icon(Icons.more_horiz, color: Color(0xFFFF8210)),
-                onPressed: _showMenuOptions,
-              ),
-            ],
+          IconButton(
+            icon: Icon(Icons.more_horiz, color: Color(0xFFFF8210)),
+            onPressed: _showMenuOptions,
           ),
         ],
       ),
@@ -292,7 +254,6 @@ class _ProfilePageState extends State<ProfilePage> {
         padding: EdgeInsets.all(16),
         child: Column(
           children: [
-            // Profile image and other content
             Expanded(
               child: Column(
                 children: [
@@ -316,33 +277,21 @@ class _ProfilePageState extends State<ProfilePage> {
                       fontWeight: FontWeight.w700,
                     ),
                   ),
-                  SizedBox(height: 5),
                   Text(
                     currentUser?.email ?? '',
                     style: TextStyle(fontSize: 16, color: Colors.grey),
                   ),
-                  SizedBox(height: 5),
                   Row(
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
                       GestureDetector(
-                        onTap: () {
-                          _showPopup("Followers");
-                          setState(() {
-                            isTappedLeft = true;
-                            isTappedRight = false;
-                          });
-                        },
+                        onTap: () => _showPopup("Followers"),
                         child: Text(
                           "${userData?['followers']?.length ?? 0} followers",
                           style: TextStyle(
+                            fontSize: 18,
                             color: Color(0xff0eddd2),
                             fontWeight: FontWeight.w600,
-                            fontSize: 18,
-                            decoration:
-                                isTappedLeft
-                                    ? TextDecoration.underline
-                                    : TextDecoration.none,
                           ),
                         ),
                       ),
@@ -350,30 +299,19 @@ class _ProfilePageState extends State<ProfilePage> {
                       Container(height: 20, width: 2, color: Color(0xff0eddd2)),
                       SizedBox(width: 15),
                       GestureDetector(
-                        onTap: () {
-                          _showPopup("Following");
-                          setState(() {
-                            isTappedLeft = false;
-                            isTappedRight = true;
-                          });
-                        },
+                        onTap: () => _showPopup("Following"),
                         child: Text(
                           "${userData?['following']?.length ?? 0} following",
                           style: TextStyle(
+                            fontSize: 18,
                             color: Color(0xff0eddd2),
                             fontWeight: FontWeight.w600,
-                            fontSize: 18,
-                            decoration:
-                                isTappedRight
-                                    ? TextDecoration.underline
-                                    : TextDecoration.none,
                           ),
                         ),
                       ),
                     ],
                   ),
                   SizedBox(height: 20),
-                  // Created and Saved buttons
                   Row(
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
@@ -385,18 +323,13 @@ class _ProfilePageState extends State<ProfilePage> {
                           backgroundColor:
                               isCreatedSelected
                                   ? Color(0xffffdb4f)
-                                  : Color(0xffffffff),
+                                  : Colors.white,
                         ),
                         child: Text(
                           "CREATED",
                           style: TextStyle(
-                            fontFamily: 'AlbertSans',
-                            fontWeight: FontWeight.w500,
                             fontSize: 18,
-                            color:
-                                isCreatedSelected
-                                    ? Color(0xffffffff)
-                                    : Color(0xffffdb4f),
+                            fontFamily: 'AlbertSans',
                           ),
                         ),
                       ),
@@ -405,22 +338,17 @@ class _ProfilePageState extends State<ProfilePage> {
                         onPressed:
                             () => setState(() => isCreatedSelected = false),
                         style: OutlinedButton.styleFrom(
-                          side: BorderSide(color: Color(0xffffdb4f), width: 2),
+                          side: BorderSide(color: Color(0xffffdb4f)),
                           backgroundColor:
                               !isCreatedSelected
                                   ? Color(0xffffdb4f)
-                                  : Color(0xffffffff),
+                                  : Colors.white,
                         ),
                         child: Text(
                           "SAVED",
                           style: TextStyle(
-                            fontFamily: 'AlbertSans',
-                            fontWeight: FontWeight.w500,
                             fontSize: 18,
-                            color:
-                                !isCreatedSelected
-                                    ? Color(0xffffffff)
-                                    : Color(0xffffdb4f),
+                            fontFamily: 'AlbertSans',
                           ),
                         ),
                       ),
@@ -429,212 +357,97 @@ class _ProfilePageState extends State<ProfilePage> {
                 ],
               ),
             ),
-            // Content for CREATED or SAVED state
             Expanded(
               child:
                   isLoadingRecipes
                       ? Center(child: CircularProgressIndicator())
                       : isCreatedSelected
-                      ? _buildCreatedRecipes()
-                      : _buildSavedRecipes(),
+                      ? _buildRecipeGrid(createdRecipes, showAddButton: true)
+                      : _buildRecipeGrid(savedRecipes),
             ),
           ],
         ),
       ),
-      bottomNavigationBar: Container(
-        decoration: BoxDecoration(
-          borderRadius: BorderRadius.only(
-            topLeft: Radius.circular(20.0),
-            topRight: Radius.circular(20.0),
+      bottomNavigationBar: BottomNavigationBar(
+        backgroundColor: Colors.white,
+        selectedItemColor: Color(0xFFFF8210),
+        unselectedItemColor: Color(0xff9b9b9b),
+        showSelectedLabels: false,
+        showUnselectedLabels: false,
+        currentIndex: _selectedIndex,
+        onTap: _onItemTapped,
+        items: [
+          BottomNavigationBarItem(
+            icon: Image.asset('images/HomeIcon.png', width: 30, height: 30),
+            label: "",
           ),
-          border: Border.all(color: Color(0xff9b9b9b), width: 1.0),
-        ),
-        child: ClipRRect(
-          borderRadius: BorderRadius.only(
-            topLeft: Radius.circular(80.0),
-            topRight: Radius.circular(80.0),
+          BottomNavigationBarItem(
+            icon: Image.asset('images/ExploreIcon.png', width: 30, height: 30),
+            label: "",
           ),
-          child: SizedBox(
-            height: 80,
-            child: BottomNavigationBar(
-              backgroundColor: Color.fromARGB(255, 255, 255, 255),
-              selectedItemColor: Color(0xFFFF8210),
-              unselectedItemColor: Color(0xff9b9b9b),
-              showSelectedLabels: false,
-              showUnselectedLabels: false,
-              currentIndex: _selectedIndex,
-              onTap: _onItemTapped,
-              items: [
-                BottomNavigationBarItem(
-                  icon: Image.asset(
-                    'images/HomeIcon.png',
-                    width: 30,
-                    height: 30,
-                  ),
-                  label: "",
-                ),
-                BottomNavigationBarItem(
-                  icon: Image.asset(
-                    'images/ExploreIcon.png',
-                    width: 30,
-                    height: 30,
-                  ),
-                  label: "",
-                ),
-                BottomNavigationBarItem(
-                  icon: Image.asset(
-                    'images/MyProfileIcon.png',
-                    width: 30,
-                    height: 30,
-                  ),
-                  label: "",
-                ),
-              ],
+          BottomNavigationBarItem(
+            icon: Image.asset(
+              'images/MyProfileIcon.png',
+              width: 30,
+              height: 30,
             ),
+            label: "",
           ),
-        ),
+        ],
       ),
-      backgroundColor: Colors.white,
     );
   }
 
-  Widget _buildCreatedRecipes() {
-    if (createdRecipes.isEmpty) {
-      return Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(Icons.restaurant_menu, size: 50, color: Colors.grey),
-            SizedBox(height: 16),
-            Text(
-              "No recipes created yet",
-              style: TextStyle(color: Colors.grey, fontSize: 18),
-            ),
-            SizedBox(height: 16),
-            ElevatedButton(
-              onPressed: () {
-                // Navigate to create recipe page
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(builder: (context) => CreateRecipePage()),
-                ).then((_) {
-                  // Refresh the recipes when returning from CreateRecipePage
-                  _fetchUserRecipes();
-                });
-              },
-              child: Text("Create Your First Recipe"),
-              style: ElevatedButton.styleFrom(
-                backgroundColor: Color(0xFFFFDB4F),
-              ),
-            ),
-          ],
-        ),
-      );
-    }
+  Widget _buildRecipeGrid(List<Recipe> recipes, {bool showAddButton = false}) {
+    return recipes.isEmpty
+        ? Center(
+          child: Text(
+            "No recipes found",
+            style: TextStyle(fontSize: 16, color: Colors.grey),
+          ),
+        )
+        : GridView.builder(
+          padding: EdgeInsets.all(8),
+          gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+            crossAxisCount: 2,
+            childAspectRatio: 0.8,
+            crossAxisSpacing: 8,
+            mainAxisSpacing: 8,
+          ),
+          itemCount: recipes.length + (showAddButton ? 1 : 0),
+          itemBuilder: (context, index) {
+            if (showAddButton && index == 0) {
+              return GestureDetector(
+                onTap: () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(builder: (_) => CreateRecipePage()),
+                  ).then((_) => _fetchUserRecipes());
+                },
+                child: Container(
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(color: Colors.grey),
+                  ),
+                  child: Center(
+                    child: Icon(Icons.add, size: 50, color: Color(0xFFFFDB4F)),
+                  ),
+                ),
+              );
+            }
 
-    return GridView.builder(
-      padding: EdgeInsets.all(8),
-      gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-        crossAxisCount: 2,
-        childAspectRatio: 0.8,
-        crossAxisSpacing: 8,
-        mainAxisSpacing: 8,
-      ),
-      itemCount: createdRecipes.length + 1, // +1 for the "add" button
-      itemBuilder: (context, index) {
-        if (index == 0) {
-          return GestureDetector(
-            onTap: () {
-              // Navigate to create recipe page
-              Navigator.push(
-                context,
-                MaterialPageRoute(builder: (context) => CreateRecipePage()),
-              ).then((_) {
-                // Refresh the recipes when returning from CreateRecipePage
-                _fetchUserRecipes();
-              });
-            },
-            child: Container(
-              decoration: BoxDecoration(
-                color: Colors.white,
-                borderRadius: BorderRadius.circular(12),
-                border: Border.all(color: Colors.grey),
-              ),
-              child: Center(
-                child: Icon(Icons.add, size: 50, color: Color(0xFFFFDB4F)),
-              ),
-            ),
-          );
-        }
-
-        final recipe = createdRecipes[index - 1];
-        return RecipeCard2(
-          image: recipe.imageUrl ?? 'images/placeholder_recipe.jpg',
-          title: recipe.name,
-          rating: "4.5",
-          reviews: "10",
-          onTap: () {
-            Navigator.push(
-              context,
-              MaterialPageRoute(
-                builder: (context) => RecipePage(recipe: recipe),
-              ),
+            final recipe = recipes[showAddButton ? index - 1 : index];
+            return RecipeCard2(
+              image: recipe.imageUrl ?? 'images/placeholder_recipe.jpg',
+              title: recipe.name,
+              rating: "4.5",
+              reviews: "10",
+              isSaved: true,
+              onToggleSave:
+                  () {}, // You can wire this to real save/unsave logic later
             );
           },
         );
-      },
-    );
-  }
-
-  Widget _buildSavedRecipes() {
-    if (savedRecipes.isEmpty) {
-      return Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(Icons.bookmark_border, size: 50, color: Colors.grey),
-            SizedBox(height: 16),
-            Text(
-              "No saved recipes yet",
-              style: TextStyle(color: Colors.grey, fontSize: 18),
-            ),
-            SizedBox(height: 16),
-            Text(
-              "Save recipes you like to find them here later",
-              textAlign: TextAlign.center,
-              style: TextStyle(color: Colors.grey),
-            ),
-          ],
-        ),
-      );
-    }
-
-    return GridView.builder(
-      padding: EdgeInsets.all(8),
-      gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-        crossAxisCount: 2,
-        childAspectRatio: 0.8,
-        crossAxisSpacing: 8,
-        mainAxisSpacing: 8,
-      ),
-      itemCount: savedRecipes.length,
-      itemBuilder: (context, index) {
-        final recipe = savedRecipes[index];
-        return RecipeCard2(
-          image: recipe.imageUrl ?? 'images/placeholder_recipe.jpg',
-          title: recipe.name,
-          rating: "4.5", // You might want to add rating to your Recipe model
-          reviews: "10", // And reviews count
-          onTap: () {
-            Navigator.push(
-              context,
-              MaterialPageRoute(
-                builder: (context) => RecipePage(recipe: recipe),
-              ),
-            );
-          },
-        );
-      },
-    );
   }
 }
