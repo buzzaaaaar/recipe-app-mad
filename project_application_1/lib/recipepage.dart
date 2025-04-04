@@ -115,7 +115,7 @@ class RecipePageState extends State<RecipePage> {
     } else {
       // Default values if no recipe is provided
       title = "Chocolate Chip Cookies";
-      category = "Dessert";
+      category = "Desserts";
       prepTime = "15 minutes";
       cookTime = "12 minutes";
       totalTime = "27 minutes";

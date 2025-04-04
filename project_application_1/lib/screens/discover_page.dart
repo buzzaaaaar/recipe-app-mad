@@ -148,7 +148,7 @@ class _DiscoverPageState extends State<DiscoverPage> {
   }
 
   Widget _buildCategoryFilters() {
-    final categories = ["Dessert", "Breakfast", "Lunch", "Dinner", "Snack"];
+    final categories = ["Desserts", "Breakfast", "Lunch", "Dinner", "Snack"];
 
     return Wrap(
       spacing: 8.0,
