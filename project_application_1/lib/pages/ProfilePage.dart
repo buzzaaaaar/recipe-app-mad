@@ -18,15 +18,15 @@ class _ProfilePageState extends State<ProfilePage> {
   String selectedOption = "";
   bool isCreatedSelected = true;
   int _selectedIndex = 2;
-  bool isTappedLeft = false;
-  bool isTappedRight = false;
   User? currentUser;
   Map<String, dynamic>? userData;
   bool isLoading = true;
 
   List<Recipe> createdRecipes = [];
   List<Recipe> savedRecipes = [];
-  bool isLoadingRecipes = false;
+
+  List<dynamic> followers = [];
+  List<dynamic> following = [];
 
   @override
   void initState() {
@@ -43,23 +43,26 @@ class _ProfilePageState extends State<ProfilePage> {
                 .collection('users')
                 .doc(currentUser!.uid)
                 .get();
+
         if (userDoc.exists) {
           setState(() {
             userData = userDoc.data();
+            followers = userDoc.data()?['followers'] ?? [];
+            following = userDoc.data()?['following'] ?? [];
           });
+
           await _fetchUserRecipes();
         }
       }
-      setState(() => isLoading = false);
     } catch (e) {
-      print('Error fetching user data: $e');
+      print('Error fetching user: $e');
+    } finally {
       setState(() => isLoading = false);
     }
   }
 
   Future<void> _fetchUserRecipes() async {
     if (currentUser == null) return;
-    setState(() => isLoadingRecipes = true);
 
     try {
       final createdQuery =
@@ -74,8 +77,8 @@ class _ProfilePageState extends State<ProfilePage> {
               .toList();
 
       final savedIds = userData?['savedRecipes'] as List<dynamic>? ?? [];
-      final saved = <Recipe>[];
 
+      List<Recipe> saved = [];
       if (savedIds.isNotEmpty) {
         final savedQuery =
             await FirebaseFirestore.instance
@@ -83,23 +86,25 @@ class _ProfilePageState extends State<ProfilePage> {
                 .where(FieldPath.documentId, whereIn: savedIds)
                 .get();
 
-        saved.addAll(
-          savedQuery.docs.map((doc) => Recipe.fromMap(doc.data(), doc.id)),
-        );
+        saved =
+            savedQuery.docs
+                .map((doc) => Recipe.fromMap(doc.data(), doc.id))
+                .toList();
       }
 
       setState(() {
         createdRecipes = created;
         savedRecipes = saved;
-        isLoadingRecipes = false;
       });
     } catch (e) {
       print('Error fetching recipes: $e');
-      setState(() => isLoadingRecipes = false);
     }
   }
 
   void _showPopup(String title) {
+    final List<dynamic> listToShow =
+        title == "Followers" ? followers : following;
+
     showDialog(
       context: context,
       barrierDismissible: true,
@@ -110,6 +115,7 @@ class _ProfilePageState extends State<ProfilePage> {
           ),
           child: Container(
             padding: EdgeInsets.all(16),
+            constraints: BoxConstraints(maxHeight: 400),
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
@@ -125,20 +131,49 @@ class _ProfilePageState extends State<ProfilePage> {
                   title,
                   style: TextStyle(
                     fontSize: 25,
-                    color: Color(0Xff0eddd2),
+                    color: Color(0xff0eddd2),
                     fontFamily: 'AlbertSans',
                     fontWeight: FontWeight.w700,
                   ),
                 ),
                 SizedBox(height: 10),
-                ListTile(
-                  leading: CircleAvatar(
-                    backgroundImage: NetworkImage(
-                      userData?['profileImage'] ?? '',
+                listToShow.isEmpty
+                    ? Text("No $title found.")
+                    : Expanded(
+                      child: ListView.builder(
+                        itemCount: listToShow.length,
+                        itemBuilder: (context, index) {
+                          return FutureBuilder<DocumentSnapshot>(
+                            future:
+                                FirebaseFirestore.instance
+                                    .collection('users')
+                                    .doc(listToShow[index])
+                                    .get(),
+                            builder: (context, snapshot) {
+                              if (!snapshot.hasData) {
+                                return ListTile(title: Text("Loading..."));
+                              }
+
+                              final data =
+                                  snapshot.data!.data() as Map<String, dynamic>;
+                              return ListTile(
+                                leading: CircleAvatar(
+                                  backgroundImage:
+                                      data['profileImage'] != null
+                                          ? NetworkImage(data['profileImage'])
+                                          : AssetImage(
+                                                'images/ProfileImage.png',
+                                              )
+                                              as ImageProvider,
+                                ),
+                                title: Text(data['username'] ?? 'User'),
+                                subtitle: Text(data['email'] ?? ''),
+                              );
+                            },
+                          );
+                        },
+                      ),
                     ),
-                  ),
-                  title: Text(userData?['username'] ?? 'User'),
-                ),
               ],
             ),
           ),
@@ -161,7 +196,9 @@ class _ProfilePageState extends State<ProfilePage> {
               fontSize: 20,
             ),
           ),
-          onTap: () async => await FirebaseAuth.instance.signOut(),
+          onTap: () async {
+            await FirebaseAuth.instance.signOut();
+          },
         ),
         PopupMenuItem(
           child: Text(
@@ -287,7 +324,7 @@ class _ProfilePageState extends State<ProfilePage> {
                       GestureDetector(
                         onTap: () => _showPopup("Followers"),
                         child: Text(
-                          "${userData?['followers']?.length ?? 0} followers",
+                          "${followers.length} followers",
                           style: TextStyle(
                             fontSize: 18,
                             color: Color(0xff0eddd2),
@@ -301,7 +338,7 @@ class _ProfilePageState extends State<ProfilePage> {
                       GestureDetector(
                         onTap: () => _showPopup("Following"),
                         child: Text(
-                          "${userData?['following']?.length ?? 0} following",
+                          "${following.length} following",
                           style: TextStyle(
                             fontSize: 18,
                             color: Color(0xff0eddd2),
@@ -359,9 +396,7 @@ class _ProfilePageState extends State<ProfilePage> {
             ),
             Expanded(
               child:
-                  isLoadingRecipes
-                      ? Center(child: CircularProgressIndicator())
-                      : isCreatedSelected
+                  isCreatedSelected
                       ? _buildRecipeGrid(createdRecipes, showAddButton: true)
                       : _buildRecipeGrid(savedRecipes),
             ),
@@ -444,8 +479,7 @@ class _ProfilePageState extends State<ProfilePage> {
               rating: "4.5",
               reviews: "10",
               isSaved: true,
-              onToggleSave:
-                  () {}, // You can wire this to real save/unsave logic later
+              onToggleSave: () {},
             );
           },
         );
